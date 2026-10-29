@@ -1,0 +1,33 @@
+---
+- name: Configure inventory and declarative record variables
+  ansible.controller.inventory:
+    name: "{{ aap_inventory_name }}"
+    organization: "{{ aap_organization }}"
+    variables:
+      pfsense_address: "{{ pfsense_address }}"
+      pfsense_api_host: "{{ pfsense_api_host }}"
+      pfsense_api_port: "{{ pfsense_api_port }}"
+      pfsense_dns_records: "{{ pfsense_dns_records }}"
+  register: aap_inventory_result
+
+- name: Configure local execution host
+  ansible.controller.host:
+    name: localhost
+    inventory: "{{ aap_inventory_name }}"
+    variables:
+      ansible_connection: local
+      ansible_python_interpreter: /opt/venv/bin/python
+
+- name: Configure bootstrap host
+  ansible.controller.host:
+    name: pfsense
+    inventory: "{{ aap_inventory_name }}"
+    variables:
+      ansible_host: "{{ pfsense_address }}"
+      ansible_user: "{{ pfsense_ssh_user }}"
+      ansible_python_interpreter: /usr/local/bin/python3.11
+      ansible_ssh_common_args: !unsafe >-
+        -o StrictHostKeyChecking=yes -o UserKnownHostsFile={{ lookup('ansible.builtin.env', 'PFSENSE_KNOWN_HOSTS_FILE') }}
+
+- name: Configure read-only inventory discovery
+  ansible.builtin.include_tasks: discovery.yml

@@ -185,6 +185,43 @@ discovery data and connection hints; it preserves manually managed inventory
 variables, hosts, and declarative records. The `pfsense_discovery` group's
 Variables view holds the full data structure.
 
+### Inventory configuration as code and daily refresh
+
+The inventory, its two execution hosts, Git source, credential/image references,
+refresh policy, and **pfSense Daily Discovery** schedule are reconciled by the
+deployment role. The default schedule runs daily at **06:00 America/New_York**,
+starting October 29, 2026. The timezone preserves 06:00 across daylight-saving
+changes; the fixed `DTSTART` prevents redeployments from moving the schedule.
+Scheduled runs update inventory only and never launch the DNS deployment workflow.
+Refresh-before-job behavior and its five-minute cache remain enabled.
+
+Configure `aap_inventory_schedule_name`, `aap_inventory_schedule_enabled`, and
+`aap_inventory_schedule_rrule` in your deployment configuration. Setting the
+schedule flag to `false` explicitly disables its existing AAP schedule. Setting
+`aap_inventory_discovery_enabled: false` skips source provisioning and disables
+the managed daily schedule if present; it does not delete the existing source,
+its data, or its existing refresh-before-job policy. Unrelated schedules are not
+modified. Keep resource names stable: names identify the resources being managed.
+
+For an existing deployment, reconcile only inventory resources without building
+images, enrolling credentials, or launching firewall jobs:
+
+```sh
+.tools/bin/ansible-playbook playbooks/deploy_inventory.yml -e @deployment.yml
+```
+
+This entry point requires the organization, project, enrolled API credential, and
+execution image to exist. The full `deploy.yml` playbook invokes the same tasks.
+Redeployment corrects drift in declared fields and recreates missing inventory
+resources. A small module using the pinned controller client's authentication
+helpers binds schedules to the resolved inventory-source ID; it avoids the
+name-only lookup in `ansible.controller.schedule` 4.8.12.
+
+Git is the source of truth for these resource definitions and declared variables.
+`pfsense_discovered` remains runtime data owned by the inventory source. Refreshes
+do not change `pfsense_dns_records`, and discovered snapshots are not committed.
+Secrets remain in AAP and are supplied at runtime.
+
 The existing API key inherits its service account's permissions. Bootstrap adds
 GET access for resolver settings, resolver domain overrides, and DHCP servers;
 it does not rotate the key or grant DHCP write privileges. When upgrading an

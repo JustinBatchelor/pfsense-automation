@@ -17,3 +17,29 @@
       PFSENSE_API_HOST: "{{ pfsense_api_host }}"
       PFSENSE_API_PORT: "{{ pfsense_api_port }}"
       PFSENSE_ADDRESS: "{{ pfsense_address }}"
+  when: aap_inventory_discovery_enabled
+
+- name: Resolve the managed source within this inventory
+  ansible.builtin.set_fact:
+    aap_discovery_sources: >-
+      {{ query('ansible.controller.controller_api', 'inventory_sources',
+               query_params={'inventory': aap_inventory_result.id, 'name': aap_inventory_source_name},
+               expect_objects=true) }}
+
+- name: Require an unambiguous source identity
+  ansible.builtin.assert:
+    that:
+      - aap_discovery_sources | length <= 1
+      - not (aap_inventory_discovery_enabled | bool) or aap_discovery_sources | length == 1
+    fail_msg: Expected at most one managed inventory source and exactly one when discovery is enabled.
+
+- name: Reconcile the daily discovery schedule by source ID
+  aap_inventory_schedule:
+    inventory_source_id: "{{ item.id }}"
+    name: "{{ aap_inventory_schedule_name }}"
+    rrule: "{{ aap_inventory_schedule_rrule }}"
+    enabled: "{{ (aap_inventory_discovery_enabled | bool) and (aap_inventory_schedule_enabled | bool) }}"
+    create_if_missing: "{{ aap_inventory_discovery_enabled }}"
+  loop: "{{ aap_discovery_sources }}"
+  loop_control:
+    label: "{{ item.name }}"

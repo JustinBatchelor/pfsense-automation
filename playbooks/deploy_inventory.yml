@@ -1,0 +1,10 @@
+---
+- name: Reconcile inventory and discovery scheduling without launching firewall jobs
+  hosts: localhost
+  gather_facts: false
+  vars_files: [../vars/defaults.yml]
+  tasks:
+    - name: Apply inventory configuration using existing controller dependencies
+      ansible.builtin.include_role:
+        name: aap_deploy
+        tasks_from: inventory.yml
