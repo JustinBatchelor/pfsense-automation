@@ -34,8 +34,13 @@ python3.12 -m venv .tools
 
 The `ansible.controller` collection is licensed Automation Hub content, not a
 public Galaxy collection. Configure your authorized Hub source before installing
-it, or use the collection supplied by your licensed supported execution image.
-The pinned execution image already contains that collection.
+it locally with
+`.tools/bin/ansible-galaxy collection install ansible.controller:==4.8.12 -p .collections`,
+or use the collection supplied by your licensed supported execution image.
+The pinned execution image already contains that collection. AAP automatically
+installs `collections/requirements.yml` during Git synchronization, so that file
+contains only public dependencies; it must not request the licensed collection
+from public Galaxy.
 
 All container Python packages and Ansible executables run from **`/opt/venv`**.
 The image build verifies the interpreter prefix and required modules. The same

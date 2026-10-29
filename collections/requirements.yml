@@ -2,5 +2,6 @@
 collections:
   - name: pfrest.pfsense
     version: 0.1.0
-  - name: ansible.controller
-    version: 4.8.12
+# AAP automatically installs this file during Git project synchronization.
+# Keep it public-only: ansible.controller 4.8.12 is supplied by the pinned
+# licensed execution image. Local developers install it from Automation Hub.
