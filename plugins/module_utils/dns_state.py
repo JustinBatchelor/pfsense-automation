@@ -147,22 +147,34 @@ def expected_snapshot(existing, operations):
 
 
 def survey_records(survey, existing):
-    """Replace one address family while preserving the record's other fields."""
+    """Upsert a family, remove a family, or explicitly remove a host override."""
     if not isinstance(survey, dict):
         raise InvalidState("DNS survey must be a mapping")
+    action = survey.get("action", "upsert")
+    if action not in ("upsert", "delete_type", "delete_host"):
+        raise InvalidState("Survey action must be upsert, delete_type, or delete_host")
+    key = identity(survey)
+    absent = canonical({"host": key[0], "domain": key[1], "state": "absent"}, desired=True)
+    if action == "delete_host":
+        return [absent]
     kind = survey.get("type")
     if kind not in ("A", "AAAA"):
         raise InvalidState("Survey record type must be A or AAAA")
+    version = 4 if kind == "A" else 6
+    # DNS identity includes domain: never infer it by splitting an arbitrary FQDN.
+    present = index(existing).get(key)
+    if action == "delete_type":
+        if present is None:
+            return [absent]
+        record = canonical(present)
+        record["ip"] = [ip for ip in record["ip"] if ipaddress.ip_address(ip).version != version]
+        return [canonical(record, desired=True)] if record["ip"] else [absent]
     try:
         address = ipaddress.ip_address(survey.get("address", "").strip())
     except (ValueError, AttributeError):
         raise InvalidState("Survey requires a valid IP address") from None
-    version = 4 if kind == "A" else 6
     if address.version != version:
         raise InvalidState("Survey address does not match the selected A/AAAA type")
-    key = identity(survey)
-    # DNS identity includes domain: never infer it by splitting an arbitrary FQDN.
-    present = index(existing).get(key)
     record = canonical(present) if present else {
         "host": key[0], "domain": key[1], "ip": [], "descr": "", "aliases": [],
     }

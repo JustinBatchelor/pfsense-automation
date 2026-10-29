@@ -20,7 +20,7 @@
         validate_certs: true
         records: "{{ pfsense_dns_records }}"
         survey: >-
-          {{ {'host': pfsense_dns_survey_host, 'domain': pfsense_dns_survey_domain,
+          {{ {'action': pfsense_dns_survey_action, 'host': pfsense_dns_survey_host, 'domain': pfsense_dns_survey_domain,
               'type': pfsense_dns_survey_type, 'address': pfsense_dns_survey_address,
               'descr': pfsense_dns_survey_description} if pfsense_dns_input == 'survey' else none }}
         dns_server: "{{ pfsense_address }}"

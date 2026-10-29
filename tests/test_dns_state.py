@@ -106,3 +106,31 @@ def test_invalid_survey_is_rejected(changes):
     survey = {"host": "new", "domain": "automation.test", "type": "A", "address": "192.0.2.1", **changes}
     with pytest.raises(InvalidState):
         survey_records(survey, [])
+
+
+def test_survey_delete_type_preserves_other_family_and_metadata():
+    existing = [record(ip=["192.0.2.1", "2001:db8::1"], descr="keep", aliases=[
+        {"host": "alias", "domain": "automation.test", "descr": "keep"},
+    ])]
+    survey = {"action": "delete_type", "host": "one", "domain": "automation.test", "type": "A"}
+    desired = survey_records(survey, existing)
+    assert desired[0]["ip"] == ["2001:db8::1"]
+    assert desired[0]["aliases"] == existing[0]["aliases"] and desired[0]["descr"] == "keep"
+    assert plan(survey_records(survey, desired), desired) == []
+    deleted = survey_records({**survey, "type": "AAAA"}, desired)
+    assert deleted == [{"host": "one", "domain": "automation.test", "state": "absent"}]
+
+
+@pytest.mark.parametrize("action", ["delete_host", "delete_type"])
+def test_survey_delete_missing_record_is_noop_and_requires_no_address(action):
+    survey = {"action": action, "host": "one", "domain": "automation.test", "type": "A", "address": "ignored"}
+    assert plan(survey_records(survey, []), []) == []
+
+
+def test_survey_delete_host_ignores_address_and_type_but_requires_identity():
+    survey = {"action": "delete_host", "host": "one", "domain": "automation.test", "type": "ignored", "address": "ignored"}
+    assert plan(survey_records(survey, [record()]), [record()])[0]["after"] is None
+    with pytest.raises(InvalidState):
+        survey_records({**survey, "domain": ""}, [record()])
+    with pytest.raises(InvalidState):
+        survey_records({**survey, "action": "unknown"}, [record()])

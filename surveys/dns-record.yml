@@ -1,8 +1,7 @@
 ---
 name: Optional DNS A or AAAA record
 description: >-
-  Choose survey to define one record. It replaces addresses of the selected family,
-  preserving the other family and aliases. Inventory mode uses pfsense_dns_records.
+  Choose survey to create, update, or delete DNS records. Inventory mode uses pfsense_dns_records.
 spec:
   - question_name: DNS input
     question_description: Choose survey to use the fields below; otherwise use the inventory declarations.
@@ -11,6 +10,16 @@ spec:
     required: false
     default: inventory
     choices: "inventory\nsurvey"
+  - question_name: Action
+    question_description: >-
+      upsert replaces the selected address family; delete_type removes only that family;
+      delete_host removes the entire override, including all A/AAAA addresses and aliases.
+      Deleting the last address family also removes the override and its aliases.
+    variable: pfsense_dns_survey_action
+    type: multiplechoice
+    required: false
+    default: upsert
+    choices: "upsert\ndelete_type\ndelete_host"
   - question_name: Host name
     question_description: Host portion only, such as app. Leave empty for the domain apex.
     variable: pfsense_dns_survey_host
@@ -28,14 +37,14 @@ spec:
     min: 0
     max: 253
   - question_name: Record type
-    question_description: A requires an IPv4 address; AAAA requires an IPv6 address.
+    question_description: Family to upsert or delete. Ignored for delete_host.
     variable: pfsense_dns_survey_type
     type: multiplechoice
     required: false
     default: A
     choices: "A\nAAAA"
   - question_name: IP address
-    question_description: Required in survey mode. Replaces existing addresses of the selected family.
+    question_description: Required only for upsert. Must match A or AAAA. Ignored for deletion.
     variable: pfsense_dns_survey_address
     type: text
     required: false

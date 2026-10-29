@@ -263,3 +263,35 @@ def test_survey_address_family_mismatch_never_writes(tmp_path, api):
         "host": "new", "domain": "automation.test", "type": "AAAA", "address": "192.0.2.1",
     })
     assert result.returncode != 0 and not writes(state)
+
+
+@pytest.mark.parametrize("action", ["delete_type", "delete_host"])
+def test_survey_deletion_preview_apply_and_repeat_preserve_unrelated_records(tmp_path, api, action):
+    state, _ = api
+    untouched = dict(rec("untouched"), id=4)
+    target = dict(rec(ip=["192.0.2.1", "2001:db8::1"]), id=8)
+    state["records"] = [copy.deepcopy(untouched), copy.deepcopy(target)]
+    survey = {"action": action, "host": "new", "domain": "automation.test", "type": "A"}
+    result = run(tmp_path, api, [], survey=survey, check=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not writes(state) and state["records"] == [untouched, target]
+    result = run(tmp_path, api, [], survey=survey)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert writes(state) == [
+        ("PATCH" if action == "delete_type" else "DELETE", "/api/v2/services/dns_resolver/host_override"),
+        ("POST", "/api/v2/services/dns_resolver/apply"),
+    ]
+    assert state["records"][0] == untouched
+    if action == "delete_type":
+        assert state["records"][1]["ip"] == ["2001:db8::1"] and state["records"][1]["id"] == 8
+    else:
+        assert state["records"] == [untouched]
+    state["calls"].clear()
+    result = run(tmp_path, api, [], survey=survey)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not writes(state)
+    if action == "delete_type":
+        result = run(tmp_path, api, [], survey={**survey, "type": "AAAA"})
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert state["records"] == [untouched]
+        assert writes(state)[0][0] == "DELETE"

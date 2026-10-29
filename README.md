@@ -104,15 +104,23 @@ The **pfSense DNS Deploy** workflow and the **Preview**, **Reconcile**, and
 **Verify** templates have an optional survey. Choose `inventory` (the default)
 to use `pfsense_dns_records`, or choose `survey` and supply the host, domain,
 record type (`A` or `AAAA`), address, and optional description. Domain and address
-are validated before writes when survey mode is selected; an empty host represents
+are validated before upsert writes when survey mode is selected; an empty host represents
 the domain apex. A type/address-family mismatch fails without changes.
 
-Survey mode replaces the selected address family for that host/domain, preserving
+The default `upsert` action replaces the selected address family for that host/domain, preserving
 the other family, aliases, and the description when the description field is empty.
 Existing records are patched in place; unchanged input causes no write or apply.
 Full YAML declarations retain their existing complete-record semantics, including
 explicit deletion via `state: absent`. Use Preview first and the serialized Deploy
 workflow for mutations. Direct mutation templates remain administrator-only.
+
+To delete through the survey, select `survey` and choose either `delete_type`
+(remove all addresses of the selected A/AAAA family while preserving the other
+family and aliases) or `delete_host` (remove the entire host override and its
+aliases). Removing the last address family also removes the override. Supply
+host and domain; the address and description fields are ignored for deletion,
+and record type is ignored for `delete_host`. A missing record or missing selected
+family is a no-op. Preview the same survey values before launching Deploy.
 
 ## Read-only dynamic inventory
 
