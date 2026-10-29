@@ -1,0 +1,24 @@
+---
+# ansible-builder equivalent of ee/Containerfile; build_ee.py uses the latter
+# for OpenShift binary builds without requiring a local container daemon.
+version: 3
+images:
+  base_image:
+    name: registry.redhat.io/ansible-automation-platform-27/ee-supported-rhel9@sha256:b08dcf736e08e75c4c6b462545bbce85690cc55c45fee3d0eb1516a28b149473
+dependencies:
+  galaxy: ee/requirements.yml
+  python: requirements.txt
+  python_interpreter:
+    python_path: /opt/venv/bin/python
+  ansible_core:
+    package_pip: ansible-core==2.19.9
+  ansible_runner:
+    package_pip: ansible-runner==2.4.1
+additional_build_steps:
+  prepend_base:
+    - RUN /usr/bin/python3 -m venv /opt/venv
+    - ENV VIRTUAL_ENV=/opt/venv
+    - ENV PATH=/opt/venv/bin:$PATH
+  append_final:
+    - RUN /opt/venv/bin/python -c "import sys, requests, dns; assert sys.prefix == '/opt/venv'"
+    - RUN chmod -R a+rX /opt/venv

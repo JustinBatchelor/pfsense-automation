@@ -1,0 +1,21 @@
+---
+- name: Verify the active Python virtual environment
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Inspect interpreter isolation and required imports
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - -c
+          - >-
+            import json, sys, requests, dns;
+            assert sys.prefix != sys.base_prefix, 'A Python virtual environment is required';
+            print(json.dumps({'executable': sys.executable, 'prefix': sys.prefix, 'base_prefix': sys.base_prefix}))
+      changed_when: false
+      check_mode: false
+      register: environment_check
+
+    - name: Report interpreter isolation
+      ansible.builtin.debug:
+        msg: "{{ environment_check.stdout | from_json }}"

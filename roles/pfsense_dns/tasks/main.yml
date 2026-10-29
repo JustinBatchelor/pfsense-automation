@@ -1,0 +1,45 @@
+---
+- name: Require a runtime API credential
+  ansible.builtin.assert:
+    that: PFSENSE_API_KEY | length > 0
+    fail_msg: Supply PFSENSE_API_KEY through the environment or an AAP credential.
+  no_log: true
+
+- name: Reconcile with protected credentials and visible recovery diagnostics
+  block:
+    - name: Reconcile only explicitly declared DNS records
+      pfsense_dns_reconcile:
+        api_host: "{{ pfsense_api_host }}"
+        api_port: "{{ pfsense_api_port }}"
+        api_key: "{{ PFSENSE_API_KEY }}"
+        validate_certs: true
+        records: "{{ pfsense_dns_records }}"
+        dns_server: "{{ pfsense_address }}"
+        verify_only: "{{ pfsense_dns_verify_only }}"
+      register: dns_result
+      no_log: true
+  rescue:
+    - name: Report failure and rollback status without module invocation secrets
+      ansible.builtin.fail:
+        msg:
+          error: "{{ dns_result.msg | default('Reconciliation failed') }}"
+          attempted: "{{ dns_result.attempted | default(0) }}"
+          restored: "{{ dns_result.restored | default(0) }}"
+          rollback_errors: "{{ dns_result.rollback_errors | default([]) }}"
+
+- name: Report sanitized reconciliation result
+  ansible.builtin.debug:
+    msg:
+      changed: "{{ dns_result.changed }}"
+      planned_changes: "{{ dns_result.planned_changes }}"
+      apply_count: "{{ dns_result.apply_count }}"
+
+- name: Verify live DNS independently over UDP and TCP
+  pfsense_dns_verify:
+    server: "{{ pfsense_address }}"
+    records: "{{ pfsense_dns_records }}"
+  register: dns_verification
+  retries: 6
+  delay: 2
+  until: dns_verification is succeeded
+  when: not ansible_check_mode

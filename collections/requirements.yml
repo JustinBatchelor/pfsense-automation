@@ -1,0 +1,6 @@
+---
+collections:
+  - name: pfrest.pfsense
+    version: 0.1.0
+  - name: ansible.controller
+    version: 4.8.12

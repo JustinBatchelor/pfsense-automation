@@ -1,0 +1,30 @@
+---
+# Copy to deployment.yml (ignored). Credentials are supplied through environment.
+pfsense_address: 10.45.45.1
+pfsense_api_host: pfsense.batchelor.live
+pfsense_api_port: 443
+pfsense_ssh_user: admin
+pfsense_ssh_private_key_file: ~/.ssh/pfsense
+# Supply the verified host public key line; never disable SSH host checking.
+pfsense_ssh_known_hosts_file: ~/.ssh/known_hosts
+pfsense_api_interfaces: [lan]
+pfsense_dns_records: []
+
+aap_organization: Default
+aap_project_name: pfSense Automation
+aap_project_url: https://github.com/CHANGE_ME/pfsense-automation.git
+aap_project_revision: main
+aap_inventory_name: pfSense DNS
+aap_workflow_name: pfSense DNS Deploy
+aap_api_credential_name: pfSense DNS API
+aap_machine_credential_name: pfSense Bootstrap SSH
+aap_ee_name: pfSense DNS EE
+aap_instance_groups: [default]
+aap_launch: true
+# Grant operators workflow execution only, never direct mutation-template execution.
+aap_operator_team: pfSense DNS Operators
+
+# Build on OpenShift so the image architecture matches AAP's execution nodes.
+ee_build_namespace: aap
+ee_image_name: pfsense-dns-ee
+ee_base_image: registry.redhat.io/ansible-automation-platform-27/ee-supported-rhel9@sha256:b08dcf736e08e75c4c6b462545bbce85690cc55c45fee3d0eb1516a28b149473

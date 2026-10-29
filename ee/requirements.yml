@@ -1,0 +1,5 @@
+---
+collections:
+  - name: pfrest.pfsense
+    version: 0.1.0
+# ansible.controller 4.8.12 comes from the pinned, licensed supported base image.

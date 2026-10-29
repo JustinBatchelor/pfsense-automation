@@ -1,0 +1,29 @@
+---
+- name: Inspect and reconcile pfrest without requiring a working API
+  pfsense_api_bootstrap:
+    adapter: "{{ lookup('ansible.builtin.file', role_path ~ '/files/bootstrap.php') }}"
+    releases: "{{ pfsense_restapi_releases }}"
+    owner: "{{ pfsense_api_owner }}"
+    username: "{{ pfsense_api_username }}"
+    interfaces: "{{ pfsense_api_interfaces }}"
+    api_key: "{{ PFSENSE_API_KEY }}"
+    commit: "{{ pfsense_bootstrap_commit }}"
+  register: pfsense_bootstrap_result
+  no_log: true
+
+- name: Retain runtime key in memory for enrollment
+  ansible.builtin.set_fact:
+    pfsense_runtime_key: "{{ pfsense_bootstrap_result.api_key | default(PFSENSE_API_KEY) }}"
+  no_log: true
+
+- name: Verify HTTPS identity and API permissions from the execution environment
+  pfrest.pfsense.services_dns_resolver_host_overrides_info:
+    api_host: "{{ pfsense_api_host }}"
+    api_port: "{{ pfsense_api_port }}"
+    api_key: "{{ pfsense_runtime_key }}"
+    api_username: ''
+    api_password: ''
+    validate_certs: true
+  delegate_to: localhost
+  no_log: true
+  when: not ansible_check_mode

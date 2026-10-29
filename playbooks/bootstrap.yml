@@ -1,0 +1,58 @@
+---
+- name: Bootstrap pfrest and enroll a generated credential
+  hosts: pfsense
+  gather_facts: false
+  vars:
+    aap_organization: Default
+    aap_api_credential_name: pfSense DNS API
+  roles:
+    - pfrest_bootstrap
+  tasks:
+    - name: Export a short-lived local testing credential when explicitly requested
+      ansible.builtin.copy:
+        dest: "{{ pfsense_local_key_file }}"
+        content: "{{ pfsense_runtime_key }}"
+        mode: '0600'
+      delegate_to: localhost
+      no_log: true
+      when:
+        - pfsense_local_key_file is defined
+        - not ansible_check_mode
+
+    - name: Enroll generated credentials only when required
+      when:
+        - not ansible_check_mode
+        - pfsense_bootstrap_result.enrollment_required | default(false)
+      block:
+        - name: Create runtime API credential type
+          ansible.controller.credential_type:
+            name: pfSense REST API
+            kind: cloud
+            inputs:
+              fields:
+                - id: api_key
+                  type: string
+                  label: API key
+                  secret: true
+              required: [api_key]
+            injectors:
+              env:
+                PFSENSE_API_KEY: !unsafe '{{ api_key }}'
+          delegate_to: localhost
+
+        - name: Persist generated key in the controller
+          ansible.controller.credential:
+            name: "{{ aap_api_credential_name }}"
+            organization: "{{ aap_organization }}"
+            credential_type: pfSense REST API
+            inputs:
+              api_key: "{{ pfsense_runtime_key }}"
+          delegate_to: localhost
+          no_log: true
+
+        - name: Complete enrollment after persistence succeeds
+          ansible.builtin.include_role:
+            name: pfrest_bootstrap
+          vars:
+            pfsense_bootstrap_commit: true
+            PFSENSE_API_KEY: "{{ pfsense_runtime_key }}"

@@ -1,0 +1,26 @@
+---
+name: Public unit and mock API tests
+'on':
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Create isolated test environment
+        run: |
+          python -m venv .tools
+          .tools/bin/python -m pip install -r requirements-dev.txt
+          .tools/bin/ansible-galaxy collection install pfrest.pfsense:==0.1.0 -p .collections
+      - name: Run tests and YAML checks
+        run: |
+          .tools/bin/pytest -q
+          .tools/bin/yamllint .
+      # Controller syntax/lint and live tests require the licensed collection and
+      # authorized infrastructure. Run scripts/check.sh in that environment.

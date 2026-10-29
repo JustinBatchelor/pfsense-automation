@@ -1,0 +1,133 @@
+---
+- name: Check execution environment before live acceptance
+  ansible.builtin.import_playbook: check_environment.yml
+
+- name: Exercise temporary DNS records and guarantee cleanup
+  hosts: localhost
+  gather_facts: false
+  vars_files: [../vars/defaults.yml]
+  vars:
+    PFSENSE_API_KEY: "{{ lookup('ansible.builtin.env', 'PFSENSE_API_KEY') }}"
+  tasks:
+    - name: Require a real integration run
+      ansible.builtin.assert:
+        that: not ansible_check_mode
+        fail_msg: Use dns.yml --check for previews; acceptance deliberately creates temporary records.
+
+    - name: Capture all existing host overrides
+      pfrest.pfsense.services_dns_resolver_host_overrides_info:
+        api_host: "{{ pfsense_api_host }}"
+        api_port: "{{ pfsense_api_port }}"
+        api_key: "{{ PFSENSE_API_KEY }}"
+        api_username: ''
+        api_password: ''
+        validate_certs: true
+      register: acceptance_baseline
+      no_log: true
+
+    - name: Freeze baseline and a unique test name
+      ansible.builtin.set_fact:
+        acceptance_before: "{{ acceptance_baseline.data | pfsense_dns_normalize }}"
+        acceptance_host: "aap-test-{{ 999999999999 | random }}"
+
+    - name: Ensure test identity and alias are not already configured
+      ansible.builtin.assert:
+        that:
+          - acceptance_host not in (acceptance_before | to_json)
+
+    - name: Define temporary record and explicit deletion
+      ansible.builtin.set_fact:
+        acceptance_record:
+          host: "{{ acceptance_host }}"
+          domain: automation.test
+          ip: [192.0.2.123, '2001:db8::123']
+          aliases: []
+          descr: Temporary Ansible acceptance record
+        acceptance_delete:
+          host: "{{ acceptance_host }}"
+          domain: automation.test
+          state: absent
+
+    - name: Exercise both declaration styles and lifecycle operations
+      block:
+        - name: Create using only the new record
+          ansible.builtin.include_role:
+            name: pfsense_dns
+          vars:
+            pfsense_dns_records: "{{ [acceptance_record] }}"
+
+        - name: Repeat the same input
+          ansible.builtin.include_role:
+            name: pfsense_dns
+          vars:
+            pfsense_dns_records: "{{ [acceptance_record] }}"
+
+        - name: Assert repeat caused no write or apply
+          ansible.builtin.assert:
+            that:
+              - not dns_result.changed
+              - dns_result.apply_count == 0
+
+        - name: Remove the test record before the second input style
+          ansible.builtin.include_role:
+            name: pfsense_dns
+          vars:
+            pfsense_dns_records: "{{ [acceptance_delete] }}"
+
+        - name: Create using existing records plus the new record
+          ansible.builtin.include_role:
+            name: pfsense_dns
+          vars:
+            pfsense_dns_records: "{{ acceptance_before + [acceptance_record] }}"
+
+        - name: Update addresses and add an alias
+          ansible.builtin.include_role:
+            name: pfsense_dns
+          vars:
+            pfsense_dns_records:
+              - host: "{{ acceptance_host }}"
+                domain: automation.test
+                ip: [192.0.2.124, '2001:db8::124']
+                aliases:
+                  - host: "{{ acceptance_host }}-alias"
+                    domain: automation.test
+                    descr: Temporary alias
+                descr: Temporary updated record
+      always:
+        - name: Clean up only the record allocated by this test
+          ansible.builtin.include_role:
+            name: pfsense_dns
+          vars:
+            pfsense_dns_records: "{{ [acceptance_delete] }}"
+
+        - name: Repeat explicit deletion
+          ansible.builtin.include_role:
+            name: pfsense_dns
+          vars:
+            pfsense_dns_records: "{{ [acceptance_delete] }}"
+
+        - name: Assert repeated deletion is unchanged
+          ansible.builtin.assert:
+            that:
+              - not dns_result.changed
+              - dns_result.apply_count == 0
+
+        - name: Read back the complete override list
+          pfrest.pfsense.services_dns_resolver_host_overrides_info:
+            api_host: "{{ pfsense_api_host }}"
+            api_port: "{{ pfsense_api_port }}"
+            api_key: "{{ PFSENSE_API_KEY }}"
+            api_username: ''
+            api_password: ''
+            validate_certs: true
+          register: acceptance_after
+          no_log: true
+
+        - name: Assert all original records remain unchanged
+          ansible.builtin.assert:
+            that: (acceptance_after.data | pfsense_dns_normalize) == acceptance_before
+
+        - name: Verify original DNS answers over both transports
+          pfsense_dns_verify:
+            server: "{{ pfsense_address }}"
+            records: "{{ acceptance_before }}"

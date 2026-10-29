@@ -1,0 +1,8 @@
+---
+- name: Verify pfSense DNS without mutations
+  hosts: localhost
+  gather_facts: false
+  vars:
+    pfsense_dns_verify_only: true
+  roles:
+    - pfsense_dns

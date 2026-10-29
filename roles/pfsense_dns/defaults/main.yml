@@ -1,0 +1,7 @@
+---
+pfsense_address: 10.45.45.1
+pfsense_api_host: pfsense.batchelor.live
+pfsense_api_port: 443
+PFSENSE_API_KEY: "{{ lookup('ansible.builtin.env', 'PFSENSE_API_KEY') }}"
+pfsense_dns_records: []
+pfsense_dns_verify_only: false

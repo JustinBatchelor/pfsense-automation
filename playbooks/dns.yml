@@ -1,0 +1,6 @@
+---
+- name: Reconcile pfSense DNS
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - pfsense_dns

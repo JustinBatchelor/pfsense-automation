@@ -1,0 +1,4 @@
+ansible-core==2.19.9
+ansible-runner==2.4.1
+requests==2.32.5
+dnspython==2.8.0

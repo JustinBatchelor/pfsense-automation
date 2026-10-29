@@ -1,0 +1,194 @@
+---
+- name: Ensure organization exists
+  ansible.controller.organization:
+    name: "{{ aap_organization }}"
+
+- name: Create the API credential type
+  ansible.controller.credential_type:
+    name: pfSense REST API
+    kind: cloud
+    inputs:
+      fields:
+        - id: api_key
+          type: string
+          label: API key
+          secret: true
+      required: [api_key]
+    injectors:
+      env:
+        PFSENSE_API_KEY: !unsafe '{{ api_key }}'
+
+- name: Enroll an externally supplied API credential without rewriting existing secrets
+  ansible.controller.credential:
+    name: "{{ aap_api_credential_name }}"
+    organization: "{{ aap_organization }}"
+    credential_type: pfSense REST API
+    update_secrets: false
+    inputs:
+      api_key: "{{ lookup('ansible.builtin.env', 'PFSENSE_API_KEY') }}"
+  when: lookup('ansible.builtin.env', 'PFSENSE_API_KEY') | length > 0
+  no_log: true
+
+- name: Configure SSH bootstrap credential
+  ansible.controller.credential:
+    name: "{{ aap_machine_credential_name }}"
+    organization: "{{ aap_organization }}"
+    credential_type: Machine
+    update_secrets: false
+    inputs:
+      username: "{{ pfsense_ssh_user }}"
+      ssh_key_data: "{{ lookup('ansible.builtin.file', pfsense_ssh_private_key_file | expanduser) }}"
+  no_log: true
+
+- name: Define SSH host trust credential type
+  ansible.controller.credential_type:
+    name: pfSense SSH Trust
+    kind: cloud
+    inputs:
+      fields:
+        - id: known_hosts
+          type: string
+          label: Verified SSH known hosts
+          multiline: true
+      required: [known_hosts]
+    injectors:
+      file:
+        template: !unsafe '{{ known_hosts }}'
+      env:
+        PFSENSE_KNOWN_HOSTS_FILE: !unsafe '{{ tower.filename }}'
+
+- name: Configure SSH host trust
+  ansible.controller.credential:
+    name: pfSense SSH Trust
+    organization: "{{ aap_organization }}"
+    credential_type: pfSense SSH Trust
+    inputs:
+      known_hosts: "{{ lookup('ansible.builtin.file', pfsense_ssh_known_hosts_file | expanduser) }}"
+
+- name: Register immutable execution image
+  ansible.controller.execution_environment:
+    name: "{{ aap_ee_name }}"
+    organization: "{{ aap_organization }}"
+    image: "{{ aap_ee_image }}"
+    pull: missing
+
+- name: Configure public Git project
+  tags: [source_project]
+  ansible.controller.project:
+    name: "{{ aap_project_name }}"
+    organization: "{{ aap_organization }}"
+    scm_type: git
+    scm_url: "{{ aap_project_url }}"
+    scm_branch: "{{ aap_project_revision }}"
+    scm_update_on_launch: true
+    default_environment: "{{ aap_ee_name }}"
+
+- name: Configure inventory and declarative record variables
+  ansible.controller.inventory:
+    name: "{{ aap_inventory_name }}"
+    organization: "{{ aap_organization }}"
+    variables:
+      pfsense_address: "{{ pfsense_address }}"
+      pfsense_api_host: "{{ pfsense_api_host }}"
+      pfsense_api_port: "{{ pfsense_api_port }}"
+      pfsense_dns_records: "{{ pfsense_dns_records }}"
+
+- name: Configure local execution host
+  ansible.controller.host:
+    name: localhost
+    inventory: "{{ aap_inventory_name }}"
+    variables:
+      ansible_connection: local
+      ansible_python_interpreter: /opt/venv/bin/python
+
+- name: Configure bootstrap host
+  ansible.controller.host:
+    name: pfsense
+    inventory: "{{ aap_inventory_name }}"
+    variables:
+      ansible_host: "{{ pfsense_address }}"
+      ansible_user: "{{ pfsense_ssh_user }}"
+      ansible_python_interpreter: /usr/local/bin/python3.11
+      ansible_ssh_common_args: !unsafe >-
+        -o StrictHostKeyChecking=yes -o UserKnownHostsFile={{ lookup('ansible.builtin.env', 'PFSENSE_KNOWN_HOSTS_FILE') }}
+
+- name: Configure job templates
+  ansible.controller.job_template:
+    name: "pfSense DNS {{ item.name }}"
+    organization: "{{ aap_organization }}"
+    project: "{{ aap_project_name }}"
+    inventory: "{{ aap_inventory_name }}"
+    execution_environment: "{{ aap_ee_name }}"
+    playbook: "{{ item.playbook }}"
+    job_type: "{{ item.job_type | default('run') }}"
+    credentials: "{{ item.credentials | default([aap_api_credential_name]) }}"
+    instance_groups: "{{ aap_instance_groups }}"
+    prevent_instance_group_fallback: true
+    allow_simultaneous: false
+    ask_variables_on_launch: false
+    job_slice_count: 1
+  loop:
+    - name: Preview
+      playbook: playbooks/dns.yml
+      job_type: check
+    - name: Bootstrap
+      playbook: playbooks/bootstrap.yml
+      credentials: "{{ [aap_api_credential_name, aap_machine_credential_name, 'pfSense SSH Trust'] }}"
+    - name: Reconcile
+      playbook: playbooks/dns.yml
+    - name: Verify
+      playbook: playbooks/verify.yml
+    - name: Acceptance
+      playbook: playbooks/acceptance.yml
+
+- name: Configure serialized workflow
+  ansible.controller.workflow_job_template:
+    name: "{{ aap_workflow_name }}"
+    organization: "{{ aap_organization }}"
+    inventory: "{{ aap_inventory_name }}"
+    allow_simultaneous: false
+    ask_variables_on_launch: false
+
+- name: Configure workflow nodes from last to first
+  ansible.controller.workflow_job_template_node:
+    identifier: "{{ item.id }}"
+    workflow_job_template: "{{ aap_workflow_name }}"
+    organization: "{{ aap_organization }}"
+    unified_job_template: "pfSense DNS {{ item.template }}"
+    success_nodes: "{{ item.success }}"
+  loop:
+    - {id: verify, template: Verify, success: []}
+    - {id: reconcile, template: Reconcile, success: [verify]}
+    - {id: bootstrap, template: Bootstrap, success: [reconcile]}
+
+- name: Create operator team
+  ansible.controller.team:
+    name: "{{ aap_operator_team }}"
+    organization: "{{ aap_organization }}"
+
+- name: Grant operators only workflow execution
+  ansible.controller.role:
+    team: "{{ aap_operator_team }}"
+    workflows: ["{{ aap_workflow_name }}"]
+    role: execute
+    state: present
+
+- name: Launch the configured deployment workflow once
+  ansible.controller.workflow_launch:
+    workflow_template: "{{ aap_workflow_name }}"
+    organization: "{{ aap_organization }}"
+    wait: false
+  register: aap_workflow_job
+  when: aap_launch
+
+- name: Wait for the same workflow across transient polling failures
+  ansible.controller.job_wait:
+    job_id: "{{ aap_workflow_job.id }}"
+    job_type: workflow_jobs
+    timeout: 900
+    request_timeout: 60
+  register: aap_workflow_wait
+  retries: 3
+  delay: 5
+  until: aap_workflow_wait is succeeded
+  when: aap_launch

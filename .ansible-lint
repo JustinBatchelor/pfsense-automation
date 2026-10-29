@@ -1,0 +1,15 @@
+---
+exclude_paths:
+  - .collections/
+  - .venv/
+  - .tools/
+  - .tooling/
+  - .cache/
+  - .local/
+  - artifacts/
+  - tests/
+  - context/
+skip_list:
+  - fqcn[action]  # Project-local action/module plugins are intentionally not a collection.
+  - var-naming[no-role-prefix]  # Shared public pfsense_* interface spans reusable roles.
+var_naming_pattern: "^([a-z_][a-z0-9_]*|PFSENSE_API_KEY)$"

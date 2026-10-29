@@ -1,0 +1,15 @@
+.venv/
+.tools/
+.tooling/
+.cache/
+.collections/
+.pytest_cache/
+__pycache__/
+*.pyc
+.ansible/
+artifacts/
+deployment.yml
+secrets.yml
+*.retry
+context/
+.local/

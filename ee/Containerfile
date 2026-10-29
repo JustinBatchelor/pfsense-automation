@@ -1,0 +1,15 @@
+ARG EE_BASE_IMAGE
+FROM ${EE_BASE_IMAGE}
+USER 0
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH=/opt/venv/bin:$PATH
+ENV ANSIBLE_COLLECTIONS_PATH=/usr/share/ansible/collections
+COPY requirements.txt /tmp/ee-requirements.txt
+COPY requirements.yml /tmp/ee-requirements.yml
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/python -m pip install --no-cache-dir -r /tmp/ee-requirements.txt && \
+    /opt/venv/bin/ansible-galaxy collection install -r /tmp/ee-requirements.yml -p /usr/share/ansible/collections && \
+    /opt/venv/bin/python -c "import sys, requests, dns; assert sys.prefix == '/opt/venv'" && \
+    /opt/venv/bin/ansible-doc ansible.controller.project >/dev/null && \
+    chmod -R a+rX /opt/venv /usr/share/ansible/collections
+USER 1000

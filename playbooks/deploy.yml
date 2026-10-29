@@ -1,0 +1,69 @@
+---
+- name: Validate deployment and build its immutable execution environment
+  hosts: localhost
+  gather_facts: false
+  vars_files: [../vars/defaults.yml]
+  tasks:
+    - name: Validate deployment inputs
+      ansible.builtin.assert:
+        that:
+          - aap_project_url is defined
+          - aap_project_url is match('https://')
+          - lookup('ansible.builtin.env', 'CONTROLLER_HOST') | length > 0
+        fail_msg: Set a public HTTPS Git URL and CONTROLLER_HOST with controller authentication in the environment.
+
+    - name: Check existing API enrollment in AAP
+      ansible.controller.credential:
+        name: "{{ aap_api_credential_name }}"
+        organization: "{{ aap_organization }}"
+        credential_type: pfSense REST API
+        state: exists
+      register: existing_api_credential
+      failed_when: false
+      no_log: true
+
+    - name: Determine whether local first-run enrollment is required
+      ansible.builtin.set_fact:
+        initial_enrollment: "{{ existing_api_credential.id is not defined }}"
+
+    - name: Configure the SSH bootstrap inventory
+      ansible.builtin.add_host:
+        name: pfsense
+        ansible_host: "{{ pfsense_address }}"
+        ansible_user: "{{ pfsense_ssh_user }}"
+        ansible_ssh_private_key_file: "{{ pfsense_ssh_private_key_file }}"
+        ansible_python_interpreter: /usr/local/bin/python3.11
+        ansible_ssh_common_args: "-o UserKnownHostsFile={{ pfsense_ssh_known_hosts_file | expanduser | quote }}"
+      changed_when: false
+
+    - name: Build and publish only when execution dependencies change
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ playbook_dir }}/../scripts/build_ee.py"
+          - --namespace
+          - "{{ ee_build_namespace }}"
+          - --name
+          - "{{ ee_image_name }}"
+          - --base
+          - "{{ ee_base_image }}"
+      register: image_build
+      changed_when: (image_build.stdout | from_json).changed
+      when: not ansible_check_mode
+
+    - name: Retain immutable image reference
+      ansible.builtin.set_fact:
+        aap_ee_image: "{{ (image_build.stdout | from_json).image }}"
+      when: not ansible_check_mode
+
+- name: Enroll API credentials on first deployment
+  ansible.builtin.import_playbook: bootstrap.yml
+  when: hostvars['localhost'].initial_enrollment
+
+- name: Reconcile AAP resources and launch deployment
+  hosts: localhost
+  gather_facts: false
+  vars_files: [../vars/defaults.yml]
+  roles:
+    - role: aap_deploy
+      when: not ansible_check_mode

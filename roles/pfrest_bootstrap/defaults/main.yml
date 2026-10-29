@@ -1,0 +1,15 @@
+---
+pfsense_api_host: pfsense.batchelor.live
+pfsense_api_port: 443
+pfsense_api_owner: aap-pfsense-dns-v1
+pfsense_api_username: aap-dns
+pfsense_api_interfaces:
+  - lan
+PFSENSE_API_KEY: "{{ lookup('ansible.builtin.env', 'PFSENSE_API_KEY') }}"
+pfsense_bootstrap_commit: false
+pfsense_restapi_releases:
+  2.8.1-RELEASE/amd64:
+    version: 2.10.2
+    package_version: '2.10_2'
+    url: https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/download/v2.10.2/pfSense-2.8.1-pkg-RESTAPI.pkg
+    sha256: 25d0a133e58d57358630fa0f8f80ffd075a4c2c9605f42528dcc0bbaf88cac24

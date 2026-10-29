@@ -1,0 +1,20 @@
+---
+- name: Run live acceptance inside the registered execution image
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Launch the administrator-only acceptance template once
+      ansible.controller.job_launch:
+        name: pfSense DNS Acceptance
+        wait: false
+      register: acceptance_job
+
+    - name: Wait for the same job across transient polling failures
+      ansible.controller.job_wait:
+        job_id: "{{ acceptance_job.id }}"
+        timeout: 900
+        request_timeout: 60
+      register: acceptance_wait
+      retries: 3
+      delay: 5
+      until: acceptance_wait is succeeded
