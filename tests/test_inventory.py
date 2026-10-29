@@ -94,6 +94,7 @@ def test_inventory_available_to_ansible_without_becoming_desired_state(api):
                        cwd=ROOT, env=env, text=True, capture_output=True)
     assert p.returncode == 0, p.stderr
     result = json.loads(p.stdout)
+    assert result["_meta"]["hostvars"]["localhost"]["ansible_python_interpreter"] == str(ROOT / ".tools/bin/python")
     for host in ("localhost", "pfsense"):
         variables = result["_meta"]["hostvars"][host]
         observed = variables["pfsense_discovered"]

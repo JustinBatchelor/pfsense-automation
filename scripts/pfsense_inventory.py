@@ -115,11 +115,13 @@ def inventory(snapshot, address):
         ipaddress.ip_address(address)
     except ValueError:
         raise DiscoveryError("PFSENSE_ADDRESS must be the appliance IP address") from None
+    if sys.prefix == sys.base_prefix:
+        raise DiscoveryError("Run inventory with the project .tools environment or the /opt/venv execution image")
     return {
         "_meta": {"hostvars": {
             "pfsense": {"ansible_host": address},
             "localhost": {"ansible_connection": "local",
-                          "ansible_python_interpreter": "{{ ansible_playbook_python }}"},
+                          "ansible_python_interpreter": os.path.join(sys.prefix, "bin", "python")},
         }},
         "all": {"children": ["pfsense_discovery"]},
         "pfsense_discovery": {
