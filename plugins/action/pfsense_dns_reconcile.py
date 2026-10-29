@@ -20,6 +20,7 @@ from dns_state import (
     index,
     plan,
     snapshot,
+    survey_records,
 )  # noqa: E402
 
 
@@ -31,6 +32,7 @@ class ActionModule(ActionBase):
         self.task_vars = task_vars
         args = self._task.args.copy()
         desired = args.pop("records", [])
+        survey = args.pop("survey", None)
         verify_only = args.pop("verify_only", False)
         dns_server = args.pop("dns_server", None)
         self.api = args
@@ -40,6 +42,8 @@ class ActionModule(ActionBase):
         self.calls = 0
         try:
             existing = self.read()
+            if survey is not None:
+                desired = survey_records(survey, existing)
             changes = plan(desired, existing)
             pending = self.call("services_dns_resolver_apply_info")["data"]
             if not pending.get("applied", False):
@@ -58,6 +62,7 @@ class ActionModule(ActionBase):
                 for op in changes
             ]
             result.update(changed=bool(changes), planned_changes=summary, apply_count=0)
+            result["effective_records"] = desired
             if verify_only:
                 if changes:
                     raise ValueError("Saved overrides differ from declared state")

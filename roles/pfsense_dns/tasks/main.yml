@@ -5,6 +5,11 @@
     fail_msg: Supply PFSENSE_API_KEY through the environment or an AAP credential.
   no_log: true
 
+- name: Validate the DNS input selection
+  ansible.builtin.assert:
+    that: pfsense_dns_input in ['inventory', 'survey']
+    fail_msg: Choose inventory declarations or the single-record survey.
+
 - name: Reconcile with protected credentials and visible recovery diagnostics
   block:
     - name: Reconcile only explicitly declared DNS records
@@ -14,6 +19,10 @@
         api_key: "{{ PFSENSE_API_KEY }}"
         validate_certs: true
         records: "{{ pfsense_dns_records }}"
+        survey: >-
+          {{ {'host': pfsense_dns_survey_host, 'domain': pfsense_dns_survey_domain,
+              'type': pfsense_dns_survey_type, 'address': pfsense_dns_survey_address,
+              'descr': pfsense_dns_survey_description} if pfsense_dns_input == 'survey' else none }}
         dns_server: "{{ pfsense_address }}"
         verify_only: "{{ pfsense_dns_verify_only }}"
       register: dns_result
@@ -37,7 +46,7 @@
 - name: Verify live DNS independently over UDP and TCP
   pfsense_dns_verify:
     server: "{{ pfsense_address }}"
-    records: "{{ pfsense_dns_records }}"
+    records: "{{ dns_result.effective_records }}"
   register: dns_verification
   retries: 6
   delay: 2

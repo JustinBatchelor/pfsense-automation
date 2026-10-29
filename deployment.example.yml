@@ -15,6 +15,9 @@ aap_project_name: pfSense Automation
 aap_project_url: https://github.com/CHANGE_ME/pfsense-automation.git
 aap_project_revision: main
 aap_inventory_name: pfSense DNS
+# Read-only DNS/DHCP inventory data, refreshed before jobs (five-minute cache).
+aap_inventory_discovery_enabled: true
+aap_inventory_source_name: pfSense Live Discovery
 aap_workflow_name: pfSense DNS Deploy
 aap_api_credential_name: pfSense DNS API
 aap_machine_credential_name: pfSense Bootstrap SSH

@@ -144,3 +144,30 @@ def expected_snapshot(existing, operations):
         else:
             result[key] = canonical(operation["after"])
     return result
+
+
+def survey_records(survey, existing):
+    """Replace one address family while preserving the record's other fields."""
+    if not isinstance(survey, dict):
+        raise InvalidState("DNS survey must be a mapping")
+    kind = survey.get("type")
+    if kind not in ("A", "AAAA"):
+        raise InvalidState("Survey record type must be A or AAAA")
+    try:
+        address = ipaddress.ip_address(survey.get("address", "").strip())
+    except (ValueError, AttributeError):
+        raise InvalidState("Survey requires a valid IP address") from None
+    version = 4 if kind == "A" else 6
+    if address.version != version:
+        raise InvalidState("Survey address does not match the selected A/AAAA type")
+    key = identity(survey)
+    # DNS identity includes domain: never infer it by splitting an arbitrary FQDN.
+    present = index(existing).get(key)
+    record = canonical(present) if present else {
+        "host": key[0], "domain": key[1], "ip": [], "descr": "", "aliases": [],
+    }
+    record["ip"] = [ip for ip in record["ip"] if ipaddress.ip_address(ip).version != version] + [str(address)]
+    description = survey.get("descr", "")
+    if description:
+        record["descr"] = description
+    return [canonical(record, desired=True)]

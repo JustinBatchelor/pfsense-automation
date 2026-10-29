@@ -1,0 +1,18 @@
+---
+- name: Inspect the discovered configuration without changing the firewall
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Require a successful inventory discovery
+      ansible.builtin.assert:
+        that:
+          - pfsense_discovered is defined
+          - pfsense_discovered.schema_version == 1
+        fail_msg: Use scripts/pfsense_inventory.py as the inventory or refresh the AAP inventory source.
+
+    - name: Report discovery counts
+      ansible.builtin.debug:
+        msg:
+          dns_overrides: "{{ pfsense_discovered.dns.resolver.host_overrides | length }}"
+          dhcp_ipv4_interfaces: "{{ pfsense_discovered.dhcp.ipv4.keys() | list }}"
+          dhcp_ipv6_discovery_supported: "{{ pfsense_discovered.capabilities.dhcp_ipv6 }}"

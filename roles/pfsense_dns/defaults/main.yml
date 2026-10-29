@@ -5,3 +5,9 @@ pfsense_api_port: 443
 PFSENSE_API_KEY: "{{ lookup('ansible.builtin.env', 'PFSENSE_API_KEY') }}"
 pfsense_dns_records: []
 pfsense_dns_verify_only: false
+pfsense_dns_input: inventory
+pfsense_dns_survey_host: ''
+pfsense_dns_survey_domain: ''
+pfsense_dns_survey_type: A
+pfsense_dns_survey_address: ''
+pfsense_dns_survey_description: ''

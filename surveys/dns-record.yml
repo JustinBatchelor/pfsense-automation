@@ -1,0 +1,52 @@
+---
+name: Optional DNS A or AAAA record
+description: >-
+  Choose survey to define one record. It replaces addresses of the selected family,
+  preserving the other family and aliases. Inventory mode uses pfsense_dns_records.
+spec:
+  - question_name: DNS input
+    question_description: Choose survey to use the fields below; otherwise use the inventory declarations.
+    variable: pfsense_dns_input
+    type: multiplechoice
+    required: false
+    default: inventory
+    choices: "inventory\nsurvey"
+  - question_name: Host name
+    question_description: Host portion only, such as app. Leave empty for the domain apex.
+    variable: pfsense_dns_survey_host
+    type: text
+    required: false
+    default: ''
+    min: 0
+    max: 253
+  - question_name: Domain
+    question_description: Required in survey mode, such as home.arpa.
+    variable: pfsense_dns_survey_domain
+    type: text
+    required: false
+    default: ''
+    min: 0
+    max: 253
+  - question_name: Record type
+    question_description: A requires an IPv4 address; AAAA requires an IPv6 address.
+    variable: pfsense_dns_survey_type
+    type: multiplechoice
+    required: false
+    default: A
+    choices: "A\nAAAA"
+  - question_name: IP address
+    question_description: Required in survey mode. Replaces existing addresses of the selected family.
+    variable: pfsense_dns_survey_address
+    type: text
+    required: false
+    default: ''
+    min: 0
+    max: 45
+  - question_name: Description
+    question_description: Optional. Leave empty to preserve the existing description.
+    variable: pfsense_dns_survey_description
+    type: text
+    required: false
+    default: ''
+    min: 0
+    max: 255

@@ -1,6 +1,6 @@
 import copy
 import pytest
-from dns_state import InvalidState, canonical, expected_snapshot, plan, snapshot
+from dns_state import InvalidState, canonical, expected_snapshot, plan, snapshot, survey_records
 
 
 def record(host="one", **kwargs):
@@ -85,3 +85,24 @@ def test_ambiguous_existing_matches_are_rejected():
 def test_omitted_records_never_become_deletions():
     assert plan([], [record()]) == []
     assert snapshot([record()])
+
+
+def test_survey_creates_new_record_and_full_declaration_replaces_contents():
+    desired = survey_records({"host": "new", "domain": "automation.test", "type": "AAAA",
+                              "address": "2001:db8::2", "descr": "new"}, [])
+    assert desired[0]["ip"] == ["2001:db8::2"] and desired[0]["descr"] == "new"
+    existing = [record(ip=["192.0.2.1", "2001:db8::1"], aliases=[
+        {"host": "old-alias", "domain": "automation.test"},
+    ], descr="old")]
+    op = plan([record(ip=["192.0.2.2"])], existing)[0]
+    assert op["after"]["ip"] == ["192.0.2.2"]
+    assert op["after"]["aliases"] == [] and op["after"]["descr"] == ""
+
+
+@pytest.mark.parametrize("changes", [
+    {"type": "TXT"}, {"address": "bad"}, {"domain": ""}, {"host": "bad host"},
+])
+def test_invalid_survey_is_rejected(changes):
+    survey = {"host": "new", "domain": "automation.test", "type": "A", "address": "192.0.2.1", **changes}
+    with pytest.raises(InvalidState):
+        survey_records(survey, [])

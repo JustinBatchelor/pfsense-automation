@@ -1,0 +1,24 @@
+---
+- name: Refresh observed DNS and DHCP data without applying configuration
+  hosts: localhost
+  gather_facts: false
+  vars_files: [../vars/defaults.yml]
+  tasks:
+    - name: Start the inventory refresh once
+      ansible.controller.inventory_source_update:
+        name: "{{ aap_inventory_source_name }}"
+        inventory: "{{ aap_inventory_name }}"
+        organization: "{{ aap_organization }}"
+        wait: false
+      register: discovery_update
+
+    - name: Wait for the same read-only inventory refresh
+      ansible.controller.job_wait:
+        job_id: "{{ discovery_update.id }}"
+        job_type: inventory_updates
+        timeout: 300
+        request_timeout: 60
+      register: discovery_wait
+      retries: 3
+      delay: 5
+      until: discovery_wait is succeeded

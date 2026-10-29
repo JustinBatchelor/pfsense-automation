@@ -98,6 +98,100 @@ does not apply or reload the resolver. Upstream's unused default password is
 explicitly cleared to prevent Ansible from redacting legitimate `pfsense` DNS
 names from API readback.
 
+## Optional A/AAAA survey
+
+The **pfSense DNS Deploy** workflow and the **Preview**, **Reconcile**, and
+**Verify** templates have an optional survey. Choose `inventory` (the default)
+to use `pfsense_dns_records`, or choose `survey` and supply the host, domain,
+record type (`A` or `AAAA`), address, and optional description. Domain and address
+are validated before writes when survey mode is selected; an empty host represents
+the domain apex. A type/address-family mismatch fails without changes.
+
+Survey mode replaces the selected address family for that host/domain, preserving
+the other family, aliases, and the description when the description field is empty.
+Existing records are patched in place; unchanged input causes no write or apply.
+Full YAML declarations retain their existing complete-record semantics, including
+explicit deletion via `state: absent`. Use Preview first and the serialized Deploy
+workflow for mutations. Direct mutation templates remain administrator-only.
+
+## Read-only dynamic inventory
+
+`scripts/pfsense_inventory.py` queries pfrest over verified HTTPS and exposes one
+`pfsense_discovered` structure to the existing `pfsense` and `localhost` hosts:
+
+```yaml
+pfsense_discovered:
+  schema_version: 1
+  capabilities:
+    dhcp_ipv6: false
+  dns:
+    resolver:
+      settings: {}                  # Allowlisted resolver settings
+      host_overrides: []             # host, domain, ip, aliases, descr
+      domain_overrides: []
+  dhcp:
+    ipv4:
+      lan:
+        settings: {}                # Interface, range, domain, DNS/gateway options
+        reservations: []            # MAC, IPv4 address, hostname, options, etc.
+```
+
+For example, use `pfsense_discovered.dns.resolver.host_overrides` and
+`pfsense_discovered.dhcp.ipv4.lan.reservations` directly in a playbook. Discovery
+does not generate a host for every client and does not populate
+`pfsense_dns_records`. Observed configuration never becomes desired configuration
+automatically. DHCP management is not implemented.
+
+The pinned API exposes DHCPv4 servers and their nested static mappings. DHCPv6
+reservations are not exposed by this inventory; `dhcp_ipv6: false` describes that
+limitation rather than claiming the firewall has no IPv6 reservations. Backend
+selection is also not inferred. API IDs, arbitrary custom configuration snippets,
+DDNS keys, and credentials are excluded from the exported data. Native API field
+names and value types are retained for the allowlisted fields.
+
+Locally, inject the existing key securely and use the project environment:
+
+```sh
+export PATH="$PWD/.tools/bin:$PATH"
+# PFSENSE_API_KEY must already be supplied securely in the environment.
+.tools/bin/ansible-inventory -i scripts/pfsense_inventory.py --list
+.tools/bin/ansible-playbook -i scripts/pfsense_inventory.py playbooks/discovery.yml
+```
+
+Optional environment overrides are `PFSENSE_API_HOST`, `PFSENSE_API_PORT`,
+`PFSENSE_ADDRESS`, and `REQUESTS_CA_BUNDLE`. HTTP, insecure TLS, and redirects are
+not supported. A failed API request fails discovery; there is no stale-data or SSH
+fallback. Inventory output contains network configuration, so keep saved snapshots
+under the ignored `artifacts/` directory.
+
+Deployment provisions the **pfSense Live Discovery** SCM inventory source using
+the existing **pfSense DNS API** credential and immutable execution image. Refresh
+it in AAP under **pfSense DNS → Sources**, or run:
+
+```sh
+.tools/bin/ansible-playbook playbooks/discover_aap.yml -e @deployment.yml
+```
+
+The source refreshes before jobs with a five-minute cache and merges only the
+discovery data and connection hints; it preserves manually managed inventory
+variables, hosts, and declarative records. The `pfsense_discovery` group's
+Variables view holds the full data structure.
+
+The existing API key inherits its service account's permissions. Bootstrap adds
+GET access for resolver settings, resolver domain overrides, and DHCP servers;
+it does not rotate the key or grant DHCP write privileges. When upgrading an
+existing DNS-only deployment, run Bootstrap through the existing workflow before
+enabling its new inventory source, so discovery does not precede the permission
+update:
+
+```sh
+.tools/bin/ansible-playbook playbooks/deploy.yml -e @deployment.yml \
+  -e '{"aap_inventory_discovery_enabled":false,"aap_launch":true}'
+.tools/bin/ansible-playbook playbooks/deploy.yml -e @deployment.yml \
+  -e '{"aap_inventory_discovery_enabled":true,"aap_launch":false}'
+.tools/bin/ansible-playbook playbooks/discover_aap.yml -e @deployment.yml
+```
+
 ## Deploy AAP resources from configuration
 
 Copy `deployment.example.yml` to the ignored `deployment.yml`. Configure the
@@ -147,8 +241,9 @@ account and API key, and retains a root-only pending key on the appliance until
 the AAP credential is saved. Only then is enrollment marked complete and the
 pending copy removed. Retrying interrupted enrollment reuses that pending key.
 A previously external installation requires its operator's existing key and is
-not taken over. The managed account has only host-override and resolver-apply API
-privileges, no SSH or general firewall administration permission.
+not taken over. The managed account has host-override and resolver-apply privileges plus read-only
+resolver settings, domain overrides, and DHCP server discovery. It has no DHCP
+write, SSH, or general firewall administration permission.
 
 The API ownership marker is `/conf/aap-pfsense-dns-ownership.json`; the transient
 escrow is `/conf/aap-pfsense-dns-pending.json`. Never print either secret escrow

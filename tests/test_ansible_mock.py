@@ -106,7 +106,7 @@ def api():
     server.server_close()
 
 
-def run(tmp_path, api, records, *, check=False):
+def run(tmp_path, api, records, *, check=False, survey=None):
     _, port = api
     play = [
         {
@@ -122,6 +122,7 @@ def run(tmp_path, api, records, *, check=False):
                         "api_protocol": "http",
                         "api_key": "test-key",
                         "records": records,
+                        "survey": survey,
                     },
                 }
             ],
@@ -178,8 +179,14 @@ def test_create_repeat_update_delete_and_both_input_styles(tmp_path, api):
     result = run(tmp_path, api, [rec("pfsense"), rec()])
     assert result.returncode == 0, result.stdout + result.stderr
     assert not writes(state)
+    state["calls"].clear()
     result = run(tmp_path, api, [rec(ip=["192.0.2.2"])])
     assert result.returncode == 0, result.stdout + result.stderr
+    assert writes(state) == [
+        ("PATCH", "/api/v2/services/dns_resolver/host_override"),
+        ("POST", "/api/v2/services/dns_resolver/apply"),
+    ]
+    assert next(r for r in state["records"] if r["host"] == "new")["ip"] == ["192.0.2.2"]
     result = run(tmp_path, api, [rec(state="absent")])
     assert result.returncode == 0, result.stdout + result.stderr
     assert state["records"] == original
@@ -216,4 +223,43 @@ def test_preflight_failures_issue_no_writes(tmp_path, api, reason):
     else:
         state["forbidden"] = True
     result = run(tmp_path, api, [rec()])
+    assert result.returncode != 0 and not writes(state)
+
+
+@pytest.mark.parametrize("kind,address,kept", [
+    ("A", "192.0.2.99", "2001:db8::1"),
+    ("AAAA", "2001:db8::99", "192.0.2.1"),
+])
+def test_survey_patches_existing_family_and_preserves_other_data(tmp_path, api, kind, address, kept):
+    state, _ = api
+    existing = dict(rec(ip=["192.0.2.1", "2001:db8::1"], descr="keep", aliases=[
+        {"host": "alias", "domain": "automation.test", "descr": "preserve"},
+    ]), id=7)
+    unrelated = dict(rec("untouched"), id=2)
+    state["records"] = [copy.deepcopy(unrelated), copy.deepcopy(existing)]
+    survey = {"host": "new", "domain": "automation.test", "type": kind, "address": address}
+    result = run(tmp_path, api, [], survey=survey, check=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not writes(state) and state["records"] == [unrelated, existing]
+    result = run(tmp_path, api, [], survey=survey)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert writes(state) == [
+        ("PATCH", "/api/v2/services/dns_resolver/host_override"),
+        ("POST", "/api/v2/services/dns_resolver/apply"),
+    ]
+    assert state["records"][0] == unrelated
+    after = state["records"][1]
+    assert after["id"] == 7 and set(after["ip"]) == {address, kept}
+    assert after["aliases"] == existing["aliases"] and after["descr"] == "keep"
+    state["calls"].clear()
+    result = run(tmp_path, api, [], survey=survey)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not writes(state)
+
+
+def test_survey_address_family_mismatch_never_writes(tmp_path, api):
+    state, _ = api
+    result = run(tmp_path, api, [], survey={
+        "host": "new", "domain": "automation.test", "type": "AAAA", "address": "192.0.2.1",
+    })
     assert result.returncode != 0 and not writes(state)

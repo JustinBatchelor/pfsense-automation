@@ -1,0 +1,19 @@
+---
+- name: Configure live DNS and DHCP discovery from Git
+  ansible.controller.inventory_source:
+    name: "{{ aap_inventory_source_name }}"
+    organization: "{{ aap_organization }}"
+    inventory: "{{ aap_inventory_name }}"
+    source: scm
+    source_project: "{{ aap_project_name }}"
+    source_path: scripts/pfsense_inventory.py
+    credential: "{{ aap_api_credential_name }}"
+    execution_environment: "{{ aap_ee_name }}"
+    overwrite: false
+    overwrite_vars: false
+    update_on_launch: true
+    update_cache_timeout: 300
+    source_vars:
+      PFSENSE_API_HOST: "{{ pfsense_api_host }}"
+      PFSENSE_API_PORT: "{{ pfsense_api_port }}"
+      PFSENSE_ADDRESS: "{{ pfsense_address }}"

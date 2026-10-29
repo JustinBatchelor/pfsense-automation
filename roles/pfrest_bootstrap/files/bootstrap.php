@@ -52,6 +52,10 @@ try {
             'api-v2-services-dns-resolver-host-override-delete',
             'api-v2-services-dns-resolver-apply-get',
             'api-v2-services-dns-resolver-apply-post',
+            // Read-only inventory discovery; no DHCP mutation privileges.
+            'api-v2-services-dns-resolver-settings-get',
+            'api-v2-services-dns-resolver-domain-overrides-get',
+            'api-v2-services-dhcp-servers-get',
         ];
         $description = $input['owner'];
         $users = User::query(['name' => $username]);

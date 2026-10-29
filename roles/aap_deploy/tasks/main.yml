@@ -112,6 +112,10 @@
       ansible_ssh_common_args: !unsafe >-
         -o StrictHostKeyChecking=yes -o UserKnownHostsFile={{ lookup('ansible.builtin.env', 'PFSENSE_KNOWN_HOSTS_FILE') }}
 
+- name: Configure read-only inventory discovery
+  ansible.builtin.include_tasks: discovery.yml
+  when: aap_inventory_discovery_enabled
+
 - name: Configure job templates
   ansible.controller.job_template:
     name: "pfSense DNS {{ item.name }}"
@@ -127,6 +131,10 @@
     allow_simultaneous: false
     ask_variables_on_launch: false
     job_slice_count: 1
+    survey_enabled: "{{ item.name in ['Preview', 'Reconcile', 'Verify'] }}"
+    survey_spec: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../surveys/dns-record.yml') | from_yaml
+         if item.name in ['Preview', 'Reconcile', 'Verify'] else omit }}
   loop:
     - name: Preview
       playbook: playbooks/dns.yml
@@ -148,6 +156,8 @@
     inventory: "{{ aap_inventory_name }}"
     allow_simultaneous: false
     ask_variables_on_launch: false
+    survey_enabled: true
+    survey_spec: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../surveys/dns-record.yml') | from_yaml }}"
 
 - name: Configure workflow nodes from last to first
   ansible.controller.workflow_job_template_node:
