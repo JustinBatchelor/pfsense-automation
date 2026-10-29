@@ -77,7 +77,10 @@ try {
             if ($actual_privileges !== $expected_privileges || $representation['disabled']) {
                 $changed = true;
                 if (!$check) {
-                    $user->from_representation(['priv'=>$privileges, 'disabled'=>false]);
+                    // Supplying the ID reloads initial_object. Query results alone do
+                    // not retain it, so User validation mistakes the existing name
+                    // for a reserved-name change (and can rehash the password).
+                    $user->from_representation(['id'=>$user->id, 'priv'=>$privileges, 'disabled'=>false]);
                     $user->update();
                 }
             }
