@@ -237,6 +237,14 @@ update:
 .tools/bin/ansible-playbook playbooks/discover_aap.yml -e @deployment.yml
 ```
 
+## Daily read-only Snort reporting
+
+The project also provides a separate AAP job for a rolling 24-hour Snort report,
+with a seven-day retained-log baseline and explainable local triage. It uses verified
+SSH, publishes readable results and structured job artifacts, and recommends tuning
+without changing Snort. Its daily 11:15 UTC schedule remains disabled until manual
+acceptance. See [reporting deployment, operation, and tuning](docs/snort-reporting.md).
+
 ## Deploy AAP resources from configuration
 
 Copy `deployment.example.yml` to the ignored `deployment.yml`. Configure the

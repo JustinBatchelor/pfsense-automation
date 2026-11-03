@@ -35,3 +35,19 @@ aap_operator_team: pfSense DNS Operators
 ee_build_namespace: aap
 ee_image_name: pfsense-dns-ee
 ee_base_image: registry.redhat.io/ansible-automation-platform-27/ee-supported-rhel9@sha256:b08dcf736e08e75c4c6b462545bbce85690cc55c45fee3d0eb1516a28b149473
+
+# Separate read-only reporting project; pin a reviewed commit for deployment.
+aap_snort_enabled: true
+aap_snort_project_name: pfSense Snort Reporting
+aap_snort_project_revision: main
+aap_snort_inventory_name: pfSense Snort Reporting
+aap_snort_template_name: pfSense Snort Daily Report
+aap_snort_schedule_name: pfSense Snort Daily Report
+# Enable only after inspecting a successful manual report job.
+aap_snort_schedule_enabled: false
+aap_snort_schedule_rrule: 'DTSTART:20261104T111500Z RRULE:FREQ=DAILY;INTERVAL=1'
+snort_min_count: 20
+snort_multiplier: 5
+snort_scan_threshold: 20
+snort_max_groups: 100
+snort_max_bytes: 67108864
