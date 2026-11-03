@@ -153,6 +153,9 @@
     role: execute
     state: present
 
+- name: Configure independent Snort reporting
+  ansible.builtin.include_tasks: snort.yml
+
 - name: Launch the configured deployment workflow once
   ansible.controller.workflow_launch:
     workflow_template: "{{ aap_workflow_name }}"

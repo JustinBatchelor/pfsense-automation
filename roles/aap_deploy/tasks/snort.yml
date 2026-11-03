@@ -1,0 +1,74 @@
+---
+- name: Reconcile isolated Snort reporting resources
+  when: aap_snort_enabled | bool
+  block:
+    - name: Configure dedicated reporting project at the declared revision
+      ansible.controller.project:
+        name: "{{ aap_snort_project_name }}"
+        organization: "{{ aap_organization }}"
+        scm_type: git
+        scm_url: "{{ aap_project_url }}"
+        scm_branch: "{{ aap_snort_project_revision }}"
+        scm_update_on_launch: true
+        default_environment: "{{ aap_ee_name }}"
+
+    - name: Configure static reporting inventory without discovery dependencies
+      ansible.controller.inventory:
+        name: "{{ aap_snort_inventory_name }}"
+        organization: "{{ aap_organization }}"
+        variables:
+          pfsense_address: "{{ pfsense_address }}"
+          pfsense_ssh_user: "{{ pfsense_ssh_user }}"
+          snort_min_count: "{{ snort_min_count }}"
+          snort_multiplier: "{{ snort_multiplier }}"
+          snort_scan_threshold: "{{ snort_scan_threshold }}"
+          snort_max_groups: "{{ snort_max_groups }}"
+          snort_max_bytes: "{{ snort_max_bytes }}"
+
+    - name: Configure local execution in the reporting inventory
+      ansible.controller.host:
+        name: localhost
+        inventory: "{{ aap_snort_inventory_name }}"
+        variables:
+          ansible_connection: local
+          ansible_python_interpreter: /opt/venv/bin/python
+
+    - name: Configure the read-only reporting job
+      ansible.controller.job_template:
+        name: "{{ aap_snort_template_name }}"
+        organization: "{{ aap_organization }}"
+        project: "{{ aap_snort_project_name }}"
+        inventory: "{{ aap_snort_inventory_name }}"
+        execution_environment: "{{ aap_ee_name }}"
+        playbook: playbooks/snort_report.yml
+        credentials: "{{ [aap_machine_credential_name, 'pfSense SSH Trust'] }}"
+        instance_groups: "{{ aap_instance_groups }}"
+        prevent_instance_group_fallback: true
+        allow_simultaneous: false
+        ask_variables_on_launch: false
+        job_slice_count: 1
+        timeout: 300
+
+- name: Resolve the reporting template within the organization
+  ansible.builtin.set_fact:
+    aap_snort_templates: >-
+      {{ query('ansible.controller.controller_api', 'job_templates',
+               query_params={'name': aap_snort_template_name, 'organization__name': aap_organization},
+               expect_objects=true) }}
+
+- name: Require an unambiguous reporting template
+  ansible.builtin.assert:
+    that:
+      - aap_snort_templates | length <= 1
+      - not (aap_snort_enabled | bool) or aap_snort_templates | length == 1
+
+- name: Reconcile the reporting schedule by template ID
+  aap_job_schedule:
+    job_template_id: "{{ item.id }}"
+    name: "{{ aap_snort_schedule_name }}"
+    rrule: "{{ aap_snort_schedule_rrule }}"
+    enabled: "{{ (aap_snort_enabled | bool) and (aap_snort_schedule_enabled | bool) }}"
+    create_if_missing: "{{ aap_snort_enabled }}"
+  loop: "{{ aap_snort_templates }}"
+  loop_control:
+    label: "{{ item.name }}"

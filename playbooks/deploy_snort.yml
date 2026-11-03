@@ -1,0 +1,10 @@
+---
+- name: Reconcile Snort reporting using existing controller credentials and image
+  hosts: localhost
+  gather_facts: false
+  vars_files: [../vars/defaults.yml]
+  tasks:
+    - name: Configure reporting without launching firewall mutation workflows
+      ansible.builtin.include_role:
+        name: aap_deploy
+        tasks_from: snort.yml

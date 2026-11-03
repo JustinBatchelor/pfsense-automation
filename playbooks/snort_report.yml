@@ -1,0 +1,36 @@
+---
+- name: Collect and publish a read-only daily Snort report
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Collect alert metadata and analyze retained history
+      pfsense_snort_report:
+        host: "{{ pfsense_address }}"
+        user: "{{ pfsense_ssh_user | default('admin') }}"
+        known_hosts: "{{ snort_known_hosts_file | default(lookup('ansible.builtin.env', 'PFSENSE_KNOWN_HOSTS_FILE')) }}"
+        private_key_file: "{{ snort_private_key_file | default(omit) }}"
+        end_epoch: "{{ snort_end_epoch | default(0) }}"
+        max_bytes: "{{ snort_max_bytes | default(67108864) }}"
+        min_count: "{{ snort_min_count | default(20) }}"
+        multiplier: "{{ snort_multiplier | default(5) }}"
+        scan_threshold: "{{ snort_scan_threshold | default(20) }}"
+        max_groups: "{{ snort_max_groups | default(100) }}"
+      register: snort_result
+      no_log: true
+
+    - name: Publish structured report as AAP job artifacts
+      ansible.builtin.set_stats:
+        data:
+          snort_report: "{{ snort_result.report }}"
+        per_host: false
+        aggregate: false
+      no_log: true
+
+    - name: Display the bounded readable report
+      ansible.builtin.debug:
+        msg: "{{ snort_result.report.summary.split('\n') }}"
+
+    - name: Require successful collection without detected gaps or parse errors
+      ansible.builtin.assert:
+        that: snort_result.report.collection_ok | bool
+        fail_msg: Snort collection was incomplete; review the report and job artifacts before interpreting findings.
