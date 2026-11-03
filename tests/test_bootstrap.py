@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location(
@@ -37,14 +38,9 @@ def invoke(
         (tmp_path / "conf/aap-pfsense-dns-ownership.json").write_text(json.dumps(owner))
     params = {
         "adapter": "<?php // adapter",
-        "releases": {
-            "2.8.1-RELEASE/amd64": {
-                "version": "2.10.2",
-                "package_version": "2.10_2",
-                "url": "https://example.invalid/pinned.pkg",
-                "sha256": "invalid",
-            }
-        },
+        "releases": yaml.safe_load(
+            (ROOT / "roles/pfrest_bootstrap/defaults/main.yml").read_text()
+        )["pfsense_restapi_releases"],
         "owner": "aap-pfsense-dns-v1",
         "username": "aap-dns",
         "interfaces": ["lan"],
@@ -90,11 +86,21 @@ def invoke(
     return finish.value.data, calls
 
 
-def test_missing_package_preview_does_not_claim_ownership(monkeypatch, tmp_path):
-    result, calls = invoke(monkeypatch, tmp_path, check=True)
+@pytest.mark.parametrize("version", ["2.8.1-RELEASE", "2.9.0-RELEASE"])
+def test_missing_package_preview_does_not_claim_ownership(monkeypatch, tmp_path, version):
+    result, calls = invoke(monkeypatch, tmp_path, check=True, version=version)
     assert result["changed"] and result["package_required"]
     assert not list((tmp_path / "conf").iterdir())
     assert calls == [["uname", "-m"]]
+
+
+def test_upgraded_enrolled_install_keeps_existing_key(monkeypatch, tmp_path):
+    result, _ = invoke(
+        monkeypatch, tmp_path, version="2.9.0-RELEASE", installed="2.10_2",
+        owner={"owner": "aap-pfsense-dns-v1", "status": "enrolled"}, key="existing-key",
+    )
+    assert not result.get("failed") and not result["changed"] and result["managed"]
+    assert "api_key" not in result
 
 
 def test_external_install_requires_supplied_credential_before_any_mutation(

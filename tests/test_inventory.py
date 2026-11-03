@@ -27,7 +27,7 @@ def api(tmp_path):
         "-keyout", str(key), "-out", str(cert), "-subj", "/CN=localhost",
         "-addext", "subjectAltName=DNS:localhost",
     ], check=True, capture_output=True)
-    state = {"calls": [], "forbidden": False, "redirect": False}
+    state = {"calls": [], "forbidden": False, "redirect": False, "missing": False}
     data = {
         "/api/v2/services/dns_resolver/host_overrides": [
             {"id": 0, "host": "server", "domain": "home.arpa", "ip": ["192.0.2.1"], "descr": "",
@@ -59,6 +59,8 @@ def api(tmp_path):
                 self.end_headers()
                 return
             status = 403 if state["forbidden"] or self.headers.get("X-API-Key") != "test-inventory-key" else 200
+            if state["missing"]:
+                status = 404
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -134,3 +136,14 @@ def test_missing_credential_and_invalid_host_fail_before_network():
         MODULE.Client({})
     with pytest.raises(MODULE.DiscoveryError, match="hostname"):
         MODULE.Client({"PFSENSE_API_KEY": "test", "PFSENSE_API_HOST": "https://user:secret@example.com"})
+
+
+def test_missing_api_after_upgrade_reports_package_recovery(api):
+    state, env = api
+    state["missing"] = True
+    p = invoke(env, "--list")
+    assert p.returncode == 1 and not p.stdout
+    assert "HTTP 404" in p.stderr and "pfrest package" in p.stderr
+    assert "existing API credential" in p.stderr
+    assert "test-inventory-key" not in p.stderr
+    assert state["calls"] == [("GET", "/api/v2/services/dns_resolver/host_overrides")]

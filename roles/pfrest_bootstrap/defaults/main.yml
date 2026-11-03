@@ -13,3 +13,8 @@ pfsense_restapi_releases:
     package_version: '2.10_2'
     url: https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/download/v2.10.2/pfSense-2.8.1-pkg-RESTAPI.pkg
     sha256: 25d0a133e58d57358630fa0f8f80ffd075a4c2c9605f42528dcc0bbaf88cac24
+  2.9.0-RELEASE/amd64:
+    version: 2.10.2
+    package_version: '2.10_2'
+    url: https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/download/v2.10.2/pfSense-2.9.0-pkg-RESTAPI.pkg
+    sha256: 9ac4cc0ad42981e18eb8a3432feaccef24a3eab2c84f3e2cd40254162a6fd233

@@ -55,6 +55,12 @@ class Client:
             )
         except requests.RequestException:
             raise DiscoveryError(f"Verified HTTPS read failed for {path}; check connectivity and CA trust") from None
+        if response.status_code == 404:
+            raise DiscoveryError(
+                f"Read of {path} failed with HTTP 404; check the API hostname/port and whether "
+                "the pfrest package is installed (pfSense upgrades can remove it); "
+                "restore the matching pinned package through bootstrap with the existing API credential"
+            )
         if response.status_code != 200:
             raise DiscoveryError(f"Read of {path} failed with HTTP {response.status_code}; check API read privileges")
         try:

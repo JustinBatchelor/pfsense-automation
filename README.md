@@ -8,7 +8,7 @@ Read [AGENTS.md](AGENTS.md) before modifying the code.
 
 ## Supported baseline
 
-- pfSense CE **2.8.1-RELEASE / amd64**.
+- pfSense CE **2.8.1-RELEASE / amd64** and **2.9.0-RELEASE / amd64**, with separate package checksums.
 - pfrest API **2.10.2**, FreeBSD package version **2.10_2**, with a pinned SHA-256.
 - `pfrest.pfsense` **0.1.0** and `ansible.controller` **4.8.12**.
 - Python **3.12**, Ansible Core **2.19.9**; AAP controller **4.8.12** was used for implementation.
@@ -302,6 +302,24 @@ pfSense OS updates can remove unofficial packages. The managed ownership marker
 and pfrest's backup setting support reinstallation; rerun bootstrap with the
 existing credential. An OS version outside the compatibility map requires a
 tested package mapping before proceeding.
+
+If discovery starts returning HTTP 404 after a pfSense upgrade, first check the
+installed OS version and `pkg info -x pfSense-pkg-RESTAPI` over verified SSH.
+The OS upgrade can remove the unofficial package while preserving its API backup
+and automation ownership marker. Bootstrap selects the OS-specific, checksum-pinned
+package and reuses the existing AAP API credential; do not rotate the key or install
+the package built for the previous OS. The 2.9.0 mapping uses pfrest 2.10.2, whose
+[release notes](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/tag/v2.10.1)
+introduced 2.9.0 compatibility.
+
+When the API is unavailable, the source's refresh-before-job policy can block
+Bootstrap itself. During recovery, sync the project with the matching release
+mapping, temporarily turn off **Update on launch** on **pfSense Live Discovery**,
+and run the serialized **pfSense DNS Deploy** workflow with an empty
+`pfsense_dns_records` declaration and `pfsense_dns_input: inventory` (the default)
+so recovery does not request DNS changes. Preserve any existing declarations and
+restore them afterward. Restore the source's refresh policy even if recovery fails,
+then launch and confirm a successful inventory sync. Keep the daily schedule intact.
 
 Before DNS mutations, the action captures the entire override snapshot in memory
 and rejects preexisting pending resolver changes. It rechecks state between
