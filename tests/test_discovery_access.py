@@ -19,7 +19,7 @@ class Appliance:
 
     def inspect(self, key):
         return {"user": copy.deepcopy(self.user), "keys": copy.deepcopy(self.keys),
-                "valid_key_id": 7 if key == "test-secret-key" and self.keys else None}
+                "valid_key_fingerprint": "test-key-fingerprint" if key == "test-secret-key" and self.keys else None}
 
     def create_user(self):
         self.calls.append("create_user")
@@ -27,8 +27,8 @@ class Appliance:
 
     def create_key(self):
         self.calls.append("create_key")
-        self.keys = [{"id": 7, "owner": OWNER}]
-        return {"api_key": "test-secret-key", "key_id": 7}
+        self.keys = [{"fingerprint": "test-key-fingerprint", "owner": OWNER}]
+        return {"api_key": "test-secret-key", "key_fingerprint": "test-key-fingerprint"}
 
 
 def test_fresh_enrollment_delivery_retry_commit_and_unchanged_rerun(tmp_path):
@@ -142,3 +142,21 @@ def test_commit_requires_controller_delivery(tmp_path):
     with pytest.raises(EnrollmentError, match="Cannot complete"):
         enroll(appliance, path, False, commit=True)
     assert path.read_bytes() == before
+
+
+def test_unrelated_key_reordering_does_not_invalidate_enrollment(tmp_path):
+    appliance = Appliance()
+    path = tmp_path / "enrollment.json"
+    enroll(appliance, path, False)
+    enroll(appliance, path, True, commit=True)
+    appliance.keys[0]["id"] = 99  # pfrest IDs are list positions, not stable identities.
+    assert enroll(appliance, path, True)["changed"] is False
+
+
+def test_empty_ownership_record_is_rejected_without_writes(tmp_path):
+    appliance = Appliance()
+    path = tmp_path / "enrollment.json"
+    path.write_text("{}")
+    with pytest.raises(EnrollmentError, match="ownership or state"):
+        enroll(appliance, path, False)
+    assert not appliance.calls and path.read_text() == "{}"

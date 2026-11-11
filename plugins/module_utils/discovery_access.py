@@ -48,7 +48,7 @@ def enroll(backend: Any, path: Path, credential_exists: bool,
     :returns: Change status and, only while pending, a key for no_log enrollment.
     """
     state = json.loads(path.read_text()) if path.exists() else None
-    if state and (state.get("owner") != OWNER or state.get("status") not in ("pending", "enrolled")):
+    if state is not None and (state.get("owner") != OWNER or state.get("status") not in ("pending", "enrolled")):
         raise EnrollmentError("Discovery enrollment ownership or state is invalid")
     observed = backend.inspect((state or {}).get("api_key", ""))
     user, keys = observed["user"], observed["keys"]
@@ -62,7 +62,7 @@ def enroll(backend: Any, path: Path, credential_exists: bool,
     if state and state["status"] == "enrolled":
         if not credential_exists:
             raise EnrollmentError("Enrolled discovery credential is missing in AAP; refusing automatic key rotation")
-        if len(keys) != 1 or keys[0]["id"] != state.get("key_id") or keys[0]["owner"] != OWNER:
+        if len(keys) != 1 or keys[0]["fingerprint"] != state.get("key_fingerprint") or keys[0]["owner"] != OWNER:
             raise EnrollmentError("Enrolled discovery key changed; explicit recovery required")
         return {"changed": False, "enrollment_required": False}
     if not state and credential_exists:
@@ -70,8 +70,8 @@ def enroll(backend: Any, path: Path, credential_exists: bool,
     pending_key = (state or {}).get("api_key")
     if pending_key:
         if (not user or len(keys) != 1 or keys[0]["owner"] != OWNER
-                or keys[0]["id"] != state.get("key_id")
-                or observed.get("valid_key_id") != state.get("key_id")):
+                or keys[0]["fingerprint"] != state.get("key_fingerprint")
+                or observed.get("valid_key_fingerprint") != state.get("key_fingerprint")):
             raise EnrollmentError("Pending discovery key does not match the owned account")
     elif keys:
         raise EnrollmentError("Discovery key exists without escrow; explicit recovery required")
@@ -79,7 +79,7 @@ def enroll(backend: Any, path: Path, credential_exists: bool,
         if not pending_key or not credential_exists:
             raise EnrollmentError("Cannot complete enrollment without escrow and its AAP credential")
         if not check:
-            save_state(path, {"owner": OWNER, "status": "enrolled", "key_id": state["key_id"]})
+            save_state(path, {"owner": OWNER, "status": "enrolled", "key_fingerprint": state["key_fingerprint"]})
         return {"changed": True, "enrollment_required": False}
     if check:
         return {"changed": not bool(pending_key), "enrollment_required": True}
@@ -93,7 +93,7 @@ def enroll(backend: Any, path: Path, credential_exists: bool,
         changed = True
     if not pending_key:
         created = backend.create_key()
-        state.update(api_key=created["api_key"], key_id=created["key_id"])
+        state.update(api_key=created["api_key"], key_fingerprint=created["key_fingerprint"])
         save_state(path, state)
         changed = True
     return {"changed": changed, "enrollment_required": True, "api_key": state["api_key"]}

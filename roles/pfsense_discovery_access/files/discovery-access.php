@@ -13,7 +13,7 @@ try {
     $keys = RESTAPIKey::query(['username' => $input['username']])->model_objects;
     $operation = $input['operation'];
     if ($operation === 'inspect') {
-        $result = ['user' => null, 'keys' => [], 'valid_key_id' => null];
+        $result = ['user' => null, 'keys' => [], 'valid_key_fingerprint' => null];
         if ($user) {
             $groups = [];
             foreach (config_get_path('system/group', []) as $group) {
@@ -25,9 +25,9 @@ try {
                                'disabled' => $user->disabled->value, 'groups' => $groups];
         }
         foreach ($keys as $key) {
-            $result['keys'][] = ['id' => $key->id, 'owner' => $key->descr->value];
+            $result['keys'][] = ['fingerprint' => hash('sha256', $key->hash->value), 'owner' => $key->descr->value];
             if ($input['api_key'] && $key->authenticate($input['api_key'])) {
-                $result['valid_key_id'] = $key->id;
+                $result['valid_key_fingerprint'] = hash('sha256', $key->hash->value);
             }
         }
     } elseif ($operation === 'create_user') {
@@ -46,7 +46,7 @@ try {
         $client = new Auth(); $client->username = $input['username']; $client->ip_address = '127.0.0.1';
         $key = new RESTAPIKey(data: ['descr' => $input['owner'], 'length_bytes' => 32], client: $client);
         $key->create();
-        $result = ['key_id' => $key->id, 'api_key' => $key->key->value];
+        $result = ['key_fingerprint' => hash('sha256', $key->hash->value), 'api_key' => $key->key->value];
     } else {
         throw new Exception('Unknown discovery operation');
     }
