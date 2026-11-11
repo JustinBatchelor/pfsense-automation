@@ -1,0 +1,17 @@
+---
+- name: Main | Enroll only the owned read-only discovery identity
+  block:
+    - name: Main | Execute protected discovery enrollment
+      pfsense_discovery_access:
+        adapter: "{{ lookup('ansible.builtin.file', role_path ~ '/files/discovery-access.php') }}"
+        credential_exists: "{{ pfsense_discovery_access_credential_exists }}"
+        commit: "{{ pfsense_discovery_access_commit }}"
+      delegate_to: pfsense
+      register: __pfsense_discovery_access_result
+      no_log: true
+  rescue:
+    - name: Main | Report the sanitized enrollment diagnostic
+      ansible.builtin.fail:
+        msg: >-
+          {{ __pfsense_discovery_access_result.msg
+             | default('Discovery enrollment failed; inspect protected task diagnostics') }}

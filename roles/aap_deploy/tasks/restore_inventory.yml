@@ -1,0 +1,131 @@
+---
+- name: Require immutable source and execution image for recovery
+  ansible.builtin.assert:
+    that:
+      - aap_project_url is defined and aap_project_url is match('https://')
+      - aap_project_revision is match('^[0-9a-f]{40}$')
+      - aap_ee_image is defined and aap_ee_image is search('@sha256:[0-9a-f]{64}$')
+      - not (aap_inventory_enroll_readonly | bool) or aap_inventory_api_credential_name != aap_api_credential_name
+    fail_msg: Supply a pinned Git commit, immutable EE image and a separate discovery credential name.
+
+- name: Resolve existing discovery credentials without exposing their inputs
+  ansible.builtin.set_fact:
+    __aap_deploy_credentials: >-
+      {{ query('ansible.controller.controller_api', 'credentials',
+               query_params={'name': aap_inventory_api_credential_name, 'organization__name': aap_organization},
+               expect_objects=true) }}
+  no_log: true
+
+- name: Reject ambiguous discovery credential names
+  ansible.builtin.assert:
+    that: __aap_deploy_credentials | length <= 1
+    fail_msg: Discovery credential must resolve uniquely within its organization.
+
+- name: Require an initially disabled schedule before creating firewall credentials
+  ansible.builtin.assert:
+    that: not (aap_inventory_schedule_enabled | bool)
+    fail_msg: Disable the discovery schedule for first enrollment.
+  when:
+    - aap_inventory_enroll_readonly | bool
+    - __aap_deploy_credentials | length == 0
+
+- name: Configure verified SSH only for dedicated enrollment
+  ansible.builtin.add_host:
+    name: pfsense
+    ansible_host: "{{ pfsense_address }}"
+    ansible_user: "{{ pfsense_ssh_user }}"
+    ansible_ssh_private_key_file: "{{ pfsense_ssh_private_key_file | expanduser }}"
+    ansible_python_interpreter: /usr/local/bin/python3.11
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=yes -o UserKnownHostsFile={{ pfsense_ssh_known_hosts_file | expanduser | quote }}"
+  changed_when: false
+  when: aap_inventory_enroll_readonly | bool
+
+- name: Inspect or prepare dedicated discovery enrollment
+  ansible.builtin.include_role:
+    name: pfsense_discovery_access
+  vars:
+    pfsense_discovery_access_credential_exists: "{{ __aap_deploy_credentials | length == 1 }}"
+  when: aap_inventory_enroll_readonly | bool
+
+- name: Keep new enrollment unscheduled until accepted
+  ansible.builtin.assert:
+    that: not (aap_inventory_schedule_enabled | bool)
+    fail_msg: Disable the discovery schedule until initial enrollment and inventory acceptance succeed.
+  when:
+    - aap_inventory_enroll_readonly | bool
+    - __pfsense_discovery_access_result.enrollment_required | bool
+
+- name: Preview recovery without resolving resources that do not exist yet
+  ansible.builtin.debug:
+    msg: >-
+      Read-only recovery preview passed. Apply will reconcile the credential type,
+      discovery credential, pinned EE/project, inventory hosts/source and schedule.
+      Full resource diffs require an existing dependency graph; no updates or syncs are launched in check mode.
+  when: ansible_check_mode
+
+- name: Restore the discovery dependency graph
+  when: not ansible_check_mode
+  block:
+    - name: Configure shared organization and credential type
+      ansible.builtin.include_tasks: credential_type.yml
+
+    - name: Store pending read-only credential without replacing existing secrets
+      ansible.controller.credential:
+        name: "{{ aap_inventory_api_credential_name }}"
+        organization: "{{ aap_organization }}"
+        credential_type: pfSense REST API
+        update_secrets: false
+        inputs:
+          api_key: "{{ __pfsense_discovery_access_result.api_key }}"
+      no_log: true
+      when:
+        - aap_inventory_enroll_readonly | bool
+        - __pfsense_discovery_access_result.enrollment_required | bool
+
+    - name: Store supplied API credential without replacing existing secrets
+      ansible.controller.credential:
+        name: "{{ aap_inventory_api_credential_name }}"
+        organization: "{{ aap_organization }}"
+        credential_type: pfSense REST API
+        update_secrets: false
+        inputs:
+          api_key: "{{ lookup('ansible.builtin.env', 'PFSENSE_API_KEY') }}"
+      no_log: true
+      when:
+        - not (aap_inventory_enroll_readonly | bool)
+        - lookup('ansible.builtin.env', 'PFSENSE_API_KEY') | length > 0
+
+    - name: Require the restored API credential
+      ansible.controller.credential:
+        name: "{{ aap_inventory_api_credential_name }}"
+        organization: "{{ aap_organization }}"
+        credential_type: pfSense REST API
+        state: exists
+      no_log: true
+
+    - name: Restore immutable execution environment and Git project
+      ansible.builtin.include_tasks: project.yml
+
+    - name: Restore inventory source and schedule
+      ansible.builtin.include_tasks: inventory.yml
+
+    - name: Verify pending enrollment through the actual AAP inventory source
+      when:
+        - aap_inventory_enroll_readonly | bool
+        - __pfsense_discovery_access_result.enrollment_required | bool
+      block:
+        - name: Refresh discovery using the stored AAP credential
+          ansible.controller.inventory_source_update:
+            name: "{{ aap_inventory_source_name }}"
+            inventory: "{{ aap_inventory_name }}"
+            organization: "{{ aap_organization }}"
+            wait: true
+            timeout: 600
+          register: __aap_deploy_enrollment_update
+
+        - name: Clear escrow only after authenticated AAP discovery succeeds
+          ansible.builtin.include_role:
+            name: pfsense_discovery_access
+          vars:
+            pfsense_discovery_access_credential_exists: true
+            pfsense_discovery_access_commit: true

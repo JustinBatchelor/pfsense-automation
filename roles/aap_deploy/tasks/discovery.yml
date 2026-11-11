@@ -7,7 +7,7 @@
     source: scm
     source_project: "{{ aap_project_name }}"
     source_path: scripts/pfsense_inventory.py
-    credential: "{{ aap_api_credential_name }}"
+    credential: "{{ aap_inventory_api_credential_name }}"
     execution_environment: "{{ aap_ee_name }}"
     overwrite: false
     overwrite_vars: false

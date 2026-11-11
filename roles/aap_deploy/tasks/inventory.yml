@@ -1,33 +1,72 @@
 ---
+- name: Read current inventory variables before updating owned fields
+  ansible.builtin.set_fact:
+    __aap_deploy_inventories: >-
+      {{ query('ansible.controller.controller_api', 'inventories',
+               query_params={'name': aap_inventory_name, 'organization__name': aap_organization},
+               expect_objects=true) }}
+  no_log: true
+
+- name: Require an unambiguous inventory identity
+  ansible.builtin.assert:
+    that: __aap_deploy_inventories | length <= 1
+
+- name: Retain current inventory and host variables
+  ansible.builtin.set_fact:
+    __aap_deploy_inventory_vars: >-
+      {{ (__aap_deploy_inventories[0].variables | from_yaml | default({}, true))
+         if __aap_deploy_inventories else {} }}
+    __aap_deploy_hosts: >-
+      {{ query('ansible.controller.controller_api', 'hosts',
+               query_params={'inventory': __aap_deploy_inventories[0].id, 'name__in': 'localhost,pfsense'}, expect_objects=true)
+         if __aap_deploy_inventories else [] }}
+  no_log: true
+
 - name: Configure inventory and declarative record variables
   ansible.controller.inventory:
     name: "{{ aap_inventory_name }}"
     organization: "{{ aap_organization }}"
-    variables:
-      pfsense_address: "{{ pfsense_address }}"
-      pfsense_api_host: "{{ pfsense_api_host }}"
-      pfsense_api_port: "{{ pfsense_api_port }}"
-      pfsense_dns_records: "{{ pfsense_dns_records }}"
+    variables: >-
+      {{ __aap_deploy_inventory_vars
+         | combine({'pfsense_address': pfsense_address, 'pfsense_api_host': pfsense_api_host,
+                    'pfsense_api_port': pfsense_api_port})
+         | combine({'pfsense_dns_records': pfsense_dns_records}
+                   if aap_inventory_manage_dns_records | bool else {}) }}
   register: aap_inventory_result
+  no_log: true
 
 - name: Configure local execution host
   ansible.controller.host:
     name: localhost
     inventory: "{{ aap_inventory_name }}"
-    variables:
+    variables: "{{ __aap_deploy_localhost_vars | combine(__aap_deploy_localhost_managed) }}"
+  vars:
+    __aap_deploy_localhost_vars: >-
+      {{ ((__aap_deploy_hosts | selectattr('name', 'equalto', 'localhost') | first).variables
+           | from_yaml | default({}, true))
+         if __aap_deploy_hosts | selectattr('name', 'equalto', 'localhost') | list else {} }}
+    __aap_deploy_localhost_managed:
       ansible_connection: local
       ansible_python_interpreter: /opt/venv/bin/python
+  no_log: true
 
 - name: Configure bootstrap host
   ansible.controller.host:
     name: pfsense
     inventory: "{{ aap_inventory_name }}"
-    variables:
+    variables: "{{ __aap_deploy_pfsense_vars | combine(__aap_deploy_pfsense_managed) }}"
+  vars:
+    __aap_deploy_pfsense_vars: >-
+      {{ ((__aap_deploy_hosts | selectattr('name', 'equalto', 'pfsense') | first).variables
+           | from_yaml | default({}, true))
+         if __aap_deploy_hosts | selectattr('name', 'equalto', 'pfsense') | list else {} }}
+    __aap_deploy_pfsense_managed:
       ansible_host: "{{ pfsense_address }}"
       ansible_user: "{{ pfsense_ssh_user }}"
       ansible_python_interpreter: /usr/local/bin/python3.11
       ansible_ssh_common_args: !unsafe >-
         -o StrictHostKeyChecking=yes -o UserKnownHostsFile={{ lookup('ansible.builtin.env', 'PFSENSE_KNOWN_HOSTS_FILE') }}
+  no_log: true
 
 - name: Configure read-only inventory discovery
   ansible.builtin.include_tasks: discovery.yml
