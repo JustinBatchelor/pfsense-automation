@@ -133,12 +133,46 @@ Read-only live preview passed. Independent snapshots contain nine DNS overrides
 and eleven DHCPv4 reservations and confirmed unchanged DNS/DHCP configuration,
 existing users/keys, groups and global API settings after investigation.
 
-**Rollout is pending the ongoing cluster upgrade.** The first apply attempt
-stopped while obtaining controller authentication, before the playbook executed,
-because the OpenShift API and AAP ingress became unreachable. No discovery
-account/key or recovery AAP resources were created. The local deployment file
-pins the repair commit and existing image with scheduling disabled. Successful
-inventory imports, converged live reconciliation, schedule enablement and the
-first scheduled execution have not yet been verified. Resume the documented
-rollout only after the cluster and AAP are healthy, then replace this pending
-status with the observed resource IDs and acceptance results.
+**Restored and verified November 10 after the upgrade.** OpenShift 4.22.22
+reported both nodes Ready and all cluster operators available, non-progressing
+and non-degraded. The AAP inventory project is pinned to merged PR #2 commit
+`83bfc4c92f122c81f2a94716941455826cdad6a5` and reuses image digest
+`sha256:8ef6849c922ecc12179a2fcf59eeccceae1535f8b9b3f7756e4de849c38a9a74`.
+
+First live enrollment exposed a PHP/Python response-contract bug after creating
+the restricted account but before key creation. The independently owned pending
+state allowed recovery without replacing an account or rotating any key. The
+correction returns an object for successful account creation and rejects invalid
+response types. It is recorded in [PR #3](https://github.com/JustinBatchelor/pfsense-automation/pull/3),
+operator helper revision `3f48730f7bf8f0edfef39f0efd15bee390d91b23`. Twenty-two
+targeted enrollment/adapter tests passed, including the actual PHP adapter with
+isolated mock models; YAML and production-profile Ansible lint passed. This
+operator-side correction does not change the inventory script pinned in AAP.
+
+| Restored AAP object | ID |
+| --- | --- |
+| pfSense Automation project | 63 |
+| pfSense DNS inventory | 7 |
+| pfSense Live Discovery source | 64 |
+| pfsense_discovery group | 3 |
+| pfSense Discovery API credential | 13 |
+| pfSense DNS EE | 6 |
+| pfSense Daily Discovery schedule | 10 |
+
+Inventory updates [196](https://aap-aap.apps.sno.batchelor.live/api/controller/v2/inventory_updates/196/)
+and [199](https://aap-aap.apps.sno.batchelor.live/api/controller/v2/inventory_updates/199/)
+succeeded. Group data and host variables resolved through Ansible matched
+independent read-only pfSense model reads: nine DNS overrides and eleven DHCPv4
+reservations. Redeployment reported `changed=0`. Temporary manual inventory/host
+variables and desired DNS declarations survived both reconciliation and refresh;
+only those test values were removed afterward. Existing firewall configuration,
+accounts, keys, groups and API settings retained their before-state fingerprints.
+Enrollment finished with mode-0600 ownership metadata and no pending plaintext key.
+
+Schedule 10 is enabled daily at **06:00 America/New_York**, with the next run
+calculated as **November 11, 2026, 06:00 Eastern** (`2026-11-11T11:00:00Z`).
+Enabling it changed only the schedule. Source refresh-before-job remains enabled
+with a 300-second cache and both overwrite flags false. A scheduled execution
+has not yet been observed; the two verified imports were manually initiated.
+DNS deployment and Snort jobs were not restored. The safe deployment record is
+[discovery-recovery-20261110.yml](discovery-recovery-20261110.yml).

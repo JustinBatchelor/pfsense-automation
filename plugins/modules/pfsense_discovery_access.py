@@ -69,6 +69,8 @@ class Backend:
         if result.returncode:
             raise EnrollmentError("Discovery PHP adapter failed; inspect protected appliance diagnostics")
         data = json.loads(result.stdout)
+        if not isinstance(data, dict):
+            raise EnrollmentError("Discovery adapter returned an invalid response object")
         if data.get("failed"):
             raise EnrollmentError("Discovery model operation failed; no automatic retry or key rotation")
         return data

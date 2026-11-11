@@ -1,0 +1,32 @@
+---
+observed_date: '2026-11-10'
+project: 63
+inventory: 7
+source: 64
+group: 3
+credential: 13
+execution_environment: 6
+schedule: 10
+schedule_enabled: true
+next_run: '2026-11-11T11:00:00Z'
+rrule: DTSTART;TZID=America/New_York:20261029T060000 RRULE:FREQ=DAILY;INTERVAL=1
+source_revision: 83bfc4c92f122c81f2a94716941455826cdad6a5
+image: image-registry.openshift-image-registry.svc:5000/aap/pfsense-dns-ee@sha256:8ef6849c922ecc12179a2fcf59eeccceae1535f8b9b3f7756e4de849c38a9a74
+dns_overrides: 9
+dhcp_reservations: 11
+inventory_updates:
+  - id: 199
+    status: successful
+  - id: 196
+    status: successful
+existing_firewall_configuration_preserved: true
+scheduled_execution_observed: false
+status: restored
+operator_helper_revision: 3f48730f7bf8f0edfef39f0efd15bee390d91b23
+operator_helper_pull_request: https://github.com/JustinBatchelor/pfsense-automation/pull/3
+configuration_rerun_changes: 0
+manual_variables_preserved: true
+desired_dns_records_preserved: true
+test_variables_removed: true
+enrollment_escrow_cleared: true
+discovery_only: true
