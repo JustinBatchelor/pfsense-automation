@@ -14,6 +14,8 @@ aap_organization: Default
 aap_project_name: pfSense Automation
 aap_project_url: https://github.com/CHANGE_ME/pfsense-automation.git
 aap_project_revision: main
+# Recovery defaults to immutable commits; explicitly opt in to branch tracking.
+aap_project_allow_moving_revision: false
 aap_inventory_name: pfSense DNS
 # Read-only DNS/DHCP inventory data, refreshed before jobs (five-minute cache).
 aap_inventory_discovery_enabled: true

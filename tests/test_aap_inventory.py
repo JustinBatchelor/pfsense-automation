@@ -78,7 +78,7 @@ def controller():
     server.server_close()
 
 
-def run_play(tmp_path, url, play, *args):
+def run_play(tmp_path, url, play, *args, success=True):
     path = tmp_path / "play.yml"
     path.write_text(yaml.safe_dump(play))
     env = {k: v for k, v in os.environ.items() if not k.startswith(("CONTROLLER_", "TOWER_", "AAP_"))}
@@ -86,7 +86,7 @@ def run_play(tmp_path, url, play, *args):
                ANSIBLE_LOCAL_TEMP=str(tmp_path / "ansible"), ANSIBLE_NOCOLOR="1")
     p = subprocess.run([str(ROOT / ".tools/bin/ansible-playbook"), str(path), *args],
                        cwd=ROOT, env=env, text=True, capture_output=True, timeout=120)
-    assert p.returncode == 0, p.stdout + p.stderr
+    assert (p.returncode == 0) == success, p.stdout + p.stderr
     return p.stdout
 
 
@@ -113,13 +113,17 @@ def test_restore_inventory_preserves_manual_variables_and_declarations(controlle
     assert all(json.loads(h["variables"])["operator_note"] == h["name"] for h in state["hosts"])
 
 
-def test_fresh_recovery_check_mode_never_writes_or_launches_jobs(controller, tmp_path):
+@pytest.mark.parametrize("revision,allow_moving,success", [
+    ("a" * 40, False, True), ("main", True, True), ("main", False, False),
+])
+def test_fresh_recovery_check_mode_never_writes_or_launches_jobs(controller, tmp_path, revision, allow_moving, success):
     state, url = controller
     play = [{"name": "Test fresh recovery preview", "hosts": "localhost", "gather_facts": False,
              "vars_files": [str(ROOT / "vars/defaults.yml")],
              "tasks": [{"name": "Preview recovery", "ansible.builtin.include_role": {
                  "name": "aap_deploy", "tasks_from": "restore_inventory.yml"}, "vars": {
-                     "aap_project_url": "https://example.com/repo.git", "aap_project_revision": "a" * 40,
+                     "aap_project_url": "https://example.com/repo.git", "aap_project_revision": revision,
+                     "aap_project_allow_moving_revision": allow_moving,
                      "aap_ee_image": "example.com/ee@sha256:" + "b" * 64}}]}]
-    run_play(tmp_path, url, play, "--check")
+    run_play(tmp_path, url, play, "--check", success=success)
     assert state["writes"] == [] and state["inventories"] == []

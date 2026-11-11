@@ -28,6 +28,12 @@ aap_inventory_manage_dns_records: false
 aap_inventory_schedule_enabled: false
 ```
 
+Immutable revisions remain the recovery default. To follow `main` deliberately,
+set `aap_project_revision: main` and `aap_project_allow_moving_revision: true`.
+The project retains update-on-launch, so future refreshes follow new commits on
+that branch. This is an explicit source-selection exception; the EE stays pinned
+by digest. The homelab deployment uses this option at the user's request.
+
 The image must already contain the tested `/opt/venv` runtime and licensed
 controller collection. The initial schedule must be disabled. The dedicated
 `aap-discovery` account receives only GET privileges for resolver host overrides,
@@ -43,7 +49,7 @@ export ANSIBLE_LOCAL_TEMP="$PWD/.ansible/tmp"
 .tools/bin/ansible-playbook playbooks/discover_aap.yml -e @deployment.yml
 ```
 
-Check mode validates immutable inputs, credential identity and firewall account
+Check mode validates source selection, immutable image, credential identity and firewall account
 ownership without writes. It deliberately reports a dependency-graph preview,
 not a complete controller diff when referenced objects are missing. Initial
 apply creates AAP dependencies, syncs the pinned project, creates the inventory
@@ -135,8 +141,12 @@ existing users/keys, groups and global API settings after investigation.
 
 **Restored and verified November 10 after the upgrade.** OpenShift 4.22.22
 reported both nodes Ready and all cluster operators available, non-progressing
-and non-degraded. The AAP inventory project is pinned to merged PR #2 commit
-`83bfc4c92f122c81f2a94716941455826cdad6a5` and reuses image digest
+and non-degraded. The AAP inventory project was initially restored at merged PR #2
+commit `83bfc4c92f122c81f2a94716941455826cdad6a5`. At the user's subsequent request,
+it now tracks **`main`**, with project update-on-launch enabled. Saved deployment
+configuration sets `aap_project_allow_moving_revision: true` so reconciliation
+preserves that choice. The last verified main commit is
+`d2e59022fadb17d6b70b77a17f6d15ebe93fc548`. The project reuses image digest
 `sha256:8ef6849c922ecc12179a2fcf59eeccceae1535f8b9b3f7756e4de849c38a9a74`.
 
 First live enrollment exposed a PHP/Python response-contract bug after creating
@@ -147,7 +157,7 @@ response types. It is recorded in [PR #3](https://github.com/JustinBatchelor/pfs
 operator helper revision `3f48730f7bf8f0edfef39f0efd15bee390d91b23`. Twenty-two
 targeted enrollment/adapter tests passed, including the actual PHP adapter with
 isolated mock models; YAML and production-profile Ansible lint passed. This
-operator-side correction does not change the inventory script pinned in AAP.
+operator-side correction does not change the inventory script in AAP.
 
 | Restored AAP object | ID |
 | --- | --- |
@@ -160,8 +170,9 @@ operator-side correction does not change the inventory script pinned in AAP.
 | pfSense Daily Discovery schedule | 10 |
 
 Inventory updates [196](https://aap-aap.apps.sno.batchelor.live/api/controller/v2/inventory_updates/196/)
-and [199](https://aap-aap.apps.sno.batchelor.live/api/controller/v2/inventory_updates/199/)
-succeeded. Group data and host variables resolved through Ansible matched
+, [199](https://aap-aap.apps.sno.batchelor.live/api/controller/v2/inventory_updates/199/)
+and [203](https://aap-aap.apps.sno.batchelor.live/api/controller/v2/inventory_updates/203/)
+succeeded; update 203 verified the latest merged main revision. Group data and host variables resolved through Ansible matched
 independent read-only pfSense model reads: nine DNS overrides and eleven DHCPv4
 reservations. Redeployment reported `changed=0`. Temporary manual inventory/host
 variables and desired DNS declarations survived both reconciliation and refresh;
@@ -173,6 +184,6 @@ Schedule 10 is enabled daily at **06:00 America/New_York**, with the next run
 calculated as **November 11, 2026, 06:00 Eastern** (`2026-11-11T11:00:00Z`).
 Enabling it changed only the schedule. Source refresh-before-job remains enabled
 with a 300-second cache and both overwrite flags false. A scheduled execution
-has not yet been observed; the two verified imports were manually initiated.
+has not yet been observed; the three verified imports were manually initiated.
 DNS deployment and Snort jobs were not restored. The safe deployment record is
 [discovery-recovery-20261110.yml](discovery-recovery-20261110.yml).
