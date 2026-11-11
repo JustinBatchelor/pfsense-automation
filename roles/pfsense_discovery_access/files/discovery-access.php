@@ -35,7 +35,7 @@ try {
         $user = new User(data: ['name' => $input['username'], 'password' => bin2hex(random_bytes(32)),
                                'priv' => $input['privileges'], 'descr' => $input['owner']]);
         $user->create();
-        $result = [];
+        $result = new stdClass();
     } elseif ($operation === 'create_key') {
         if (!$user || $user->descr->value !== $input['owner'] || count($keys)) {
             throw new Exception('Account or keys changed concurrently');
