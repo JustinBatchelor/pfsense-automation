@@ -1,10 +1,12 @@
 ---
-- name: Reconcile inventory and discovery scheduling without launching firewall jobs
+- name: Restore inventory discovery and its prerequisites without firewall jobs
   hosts: localhost
   gather_facts: false
   vars_files: [../vars/defaults.yml]
   tasks:
-    - name: Apply inventory configuration using existing controller dependencies
+    - name: Apply discovery-only configuration
       ansible.builtin.include_role:
         name: aap_deploy
-        tasks_from: inventory.yml
+        tasks_from: restore_inventory.yml
+      vars:
+        aap_inventory_manage_dns_records: false

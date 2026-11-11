@@ -1,0 +1,11 @@
+---
+argument_specs:
+  main:
+    short_description: Prepare or finalize independently owned read-only discovery access
+    options:
+      pfsense_discovery_access_credential_exists:
+        type: bool
+        required: true
+      pfsense_discovery_access_commit:
+        type: bool
+        default: false

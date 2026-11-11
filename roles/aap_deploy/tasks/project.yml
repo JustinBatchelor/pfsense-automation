@@ -1,0 +1,18 @@
+---
+- name: Register immutable execution image
+  ansible.controller.execution_environment:
+    name: "{{ aap_ee_name }}"
+    organization: "{{ aap_organization }}"
+    image: "{{ aap_ee_image }}"
+    pull: missing
+
+- name: Configure public Git project
+  tags: [source_project]
+  ansible.controller.project:
+    name: "{{ aap_project_name }}"
+    organization: "{{ aap_organization }}"
+    scm_type: git
+    scm_url: "{{ aap_project_url }}"
+    scm_branch: "{{ aap_project_revision }}"
+    scm_update_on_launch: true
+    default_environment: "{{ aap_ee_name }}"

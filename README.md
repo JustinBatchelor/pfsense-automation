@@ -210,8 +210,14 @@ images, enrolling credentials, or launching firewall jobs:
 .tools/bin/ansible-playbook playbooks/deploy_inventory.yml -e @deployment.yml
 ```
 
-This entry point requires the organization, project, enrolled API credential, and
-execution image to exist. The full `deploy.yml` playbook invokes the same tasks.
+This entry point can restore the organization, project, API credential type,
+execution-environment registration, inventory, source and schedule. Supply
+`aap_project_url`, a full immutable `aap_project_revision` commit, and
+`aap_ee_image` with an existing image digest. It does not build an image. The full
+`deploy.yml` playbook reuses the shared prerequisite and inventory tasks.
+Discovery-only reconciliation preserves existing desired DNS declarations and
+unrelated inventory/host variables; set `aap_inventory_manage_dns_records: true`
+explicitly only when intending to manage declarations as well.
 Redeployment corrects drift in declared fields and recreates missing inventory
 resources. A small module using the pinned controller client's authentication
 helpers binds schedules to the resolved inventory-source ID; it avoids the
@@ -221,6 +227,13 @@ Git is the source of truth for these resource definitions and declared variables
 `pfsense_discovered` remains runtime data owned by the inventory source. Refreshes
 do not change `pfsense_dns_records`, and discovered snapshots are not committed.
 Secrets remain in AAP and are supplied at runtime.
+
+For recovery after the AAP resources or API credential have been deleted, use
+the [discovery recovery runbook](docs/discovery-recovery.md). It supports a
+separate read-only `aap-discovery` identity without invoking DNS bootstrap,
+restoring DNS/Snort jobs, or changing API settings. Set
+`aap_inventory_api_credential_name` to select a separate credential; its default
+remains `aap_api_credential_name` for existing installations.
 
 The existing API key inherits its service account's permissions. Bootstrap adds
 GET access for resolver settings, resolver domain overrides, and DHCP servers;

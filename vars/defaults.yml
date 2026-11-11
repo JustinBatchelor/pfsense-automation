@@ -11,6 +11,11 @@ aap_project_name: pfSense Automation
 aap_project_revision: main
 aap_inventory_name: pfSense DNS
 aap_inventory_discovery_enabled: true
+# Separate discovery credentials retain the old default for existing deployments.
+aap_inventory_api_credential_name: "{{ aap_api_credential_name }}"
+aap_inventory_enroll_readonly: false
+# Set false for discovery-only reconciliation to preserve desired DNS declarations.
+aap_inventory_manage_dns_records: true
 aap_inventory_source_name: pfSense Live Discovery
 aap_inventory_schedule_name: pfSense Daily Discovery
 aap_inventory_schedule_enabled: true
