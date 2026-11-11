@@ -9,6 +9,7 @@ pfsense_dns_records: []
 aap_organization: Default
 aap_project_name: pfSense Automation
 aap_project_revision: main
+aap_project_allow_moving_revision: false
 aap_inventory_name: pfSense DNS
 aap_inventory_discovery_enabled: true
 # Separate discovery credentials retain the old default for existing deployments.

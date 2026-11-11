@@ -218,6 +218,9 @@ execution-environment registration, inventory, source and schedule. Supply
 Discovery-only reconciliation preserves existing desired DNS declarations and
 unrelated inventory/host variables; set `aap_inventory_manage_dns_records: true`
 explicitly only when intending to manage declarations as well.
+To intentionally follow a branch such as `main`, set `aap_project_revision: main`
+and `aap_project_allow_moving_revision: true`. Project refreshes then fetch that
+branch's latest commit; the execution image remains pinned by digest.
 Redeployment corrects drift in declared fields and recreates missing inventory
 resources. A small module using the pinned controller client's authentication
 helpers binds schedules to the resolved inventory-source ID; it avoids the

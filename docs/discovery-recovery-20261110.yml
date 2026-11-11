@@ -10,11 +10,13 @@ schedule: 10
 schedule_enabled: true
 next_run: '2026-11-11T11:00:00Z'
 rrule: DTSTART;TZID=America/New_York:20261029T060000 RRULE:FREQ=DAILY;INTERVAL=1
-source_revision: 83bfc4c92f122c81f2a94716941455826cdad6a5
+source_revision: d2e59022fadb17d6b70b77a17f6d15ebe93fc548
 image: image-registry.openshift-image-registry.svc:5000/aap/pfsense-dns-ee@sha256:8ef6849c922ecc12179a2fcf59eeccceae1535f8b9b3f7756e4de849c38a9a74
 dns_overrides: 9
 dhcp_reservations: 11
 inventory_updates:
+  - id: 203
+    status: successful
   - id: 199
     status: successful
   - id: 196
@@ -30,3 +32,5 @@ desired_dns_records_preserved: true
 test_variables_removed: true
 enrollment_escrow_cleared: true
 discovery_only: true
+source_branch: main
+source_policy: track_main_at_user_request

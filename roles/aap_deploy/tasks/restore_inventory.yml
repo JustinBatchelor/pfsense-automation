@@ -1,12 +1,14 @@
 ---
-- name: Require immutable source and execution image for recovery
+- name: Validate source selection and immutable execution image for recovery
   ansible.builtin.assert:
     that:
       - aap_project_url is defined and aap_project_url is match('https://')
-      - aap_project_revision is match('^[0-9a-f]{40}$')
+      - >-
+        aap_project_revision is match('^[0-9a-f]{40}$') or
+        ((aap_project_allow_moving_revision | bool) and (aap_project_revision | length > 0))
       - aap_ee_image is defined and aap_ee_image is search('@sha256:[0-9a-f]{64}$')
       - not (aap_inventory_enroll_readonly | bool) or aap_inventory_api_credential_name != aap_api_credential_name
-    fail_msg: Supply a pinned Git commit, immutable EE image and a separate discovery credential name.
+    fail_msg: Supply a pinned Git commit or explicitly allow a moving revision, an immutable EE image and a separate discovery credential name.
 
 - name: Resolve existing discovery credentials without exposing their inputs
   ansible.builtin.set_fact:
@@ -59,7 +61,7 @@
   ansible.builtin.debug:
     msg: >-
       Read-only recovery preview passed. Apply will reconcile the credential type,
-      discovery credential, pinned EE/project, inventory hosts/source and schedule.
+      discovery credential, pinned EE, selected Git revision, inventory hosts/source and schedule.
       Full resource diffs require an existing dependency graph; no updates or syncs are launched in check mode.
   when: ansible_check_mode
 
