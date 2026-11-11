@@ -111,3 +111,34 @@ AnsibleModule scaffolding. The enrollment state machine uses pytest with an
 independent backend; installed PHP behavior is checked on the approved appliance.
 Container-only Molecule cannot represent pfSense's PHP/configuration subsystem.
 No destructive enrollment cases run against the live firewall.
+
+## November 10, 2026 validation and rollout status
+
+AAP resource reads and its audit history confirmed that the pfSense project,
+inventory, source, credentials, execution-environment registration and schedules
+were deleted on November 6 at approximately 16:38 America/New_York. The audit
+establishes deletion, not the intent behind it. The firewall still has pfrest
+2.10_2, and the previous immutable execution image survives in OpenShift.
+
+Repair code is pinned at `0bf7e2de0f186355e6d9bc8770eb51b0b1602883` in
+[PR #2](https://github.com/JustinBatchelor/pfsense-automation/pull/2). Local
+validation passed 78 tests; eight preexisting PHP fixture tests were skipped
+because local PHP is unavailable. GitHub CI passed 84 tests, including the PHP
+fixtures, and skipped the two controller integration tests requiring the licensed
+collection; those two passed locally. YAML lint, production-profile Ansible lint,
+all playbook syntax checks, PHP syntax validation on the appliance, and the
+existing execution-image smoke test passed.
+
+Read-only live preview passed. Independent snapshots contain nine DNS overrides
+and eleven DHCPv4 reservations and confirmed unchanged DNS/DHCP configuration,
+existing users/keys, groups and global API settings after investigation.
+
+**Rollout is pending the ongoing cluster upgrade.** The first apply attempt
+stopped while obtaining controller authentication, before the playbook executed,
+because the OpenShift API and AAP ingress became unreachable. No discovery
+account/key or recovery AAP resources were created. The local deployment file
+pins the repair commit and existing image with scheduling disabled. Successful
+inventory imports, converged live reconciliation, schedule enablement and the
+first scheduled execution have not yet been verified. Resume the documented
+rollout only after the cluster and AAP are healthy, then replace this pending
+status with the observed resource IDs and acceptance results.
